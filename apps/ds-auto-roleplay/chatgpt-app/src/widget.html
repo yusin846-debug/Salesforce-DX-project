@@ -9,6 +9,7 @@
 <script>
 (()=>{'use strict';
 let state=null,busy=false,embedded=false,tab='free',currentQuestion='',started=Date.now(),timerId,pollId,bridgeReady=false;
+const draftCache=new Map();
 let rpcId=0;const requests=new Map();const app=document.getElementById('app'),error=document.getElementById('error'),status=document.getElementById('status');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const list=xs=>'<ul>'+xs.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
@@ -17,10 +18,12 @@ function rpc(method,params){return new Promise((resolve,reject)=>{const id=++rpc
 window.addEventListener('message',e=>{if(e.source!==window.parent||!e.data||e.data.jsonrpc!=='2.0')return;const m=e.data;if(m.id&&requests.has(m.id)){const p=requests.get(m.id);clearTimeout(p.timer);requests.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}else if(m.method==='ui/notifications/tool-result')accept(m.params);});
 async function call(name,args={}){let r;if(bridgeReady)r=await rpc('tools/call',{name,arguments:args});else if(window.openai?.callTool)r=await window.openai.callTool(name,args);else{const response=await fetch('/api/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,arguments:args})});r=await response.json();if(!response.ok)throw new Error(r.error||'연결에 실패했습니다.');}if(r?.isError)throw new Error(r.structuredContent?.error||r.content?.[0]?.text||'요청에 실패했습니다.');accept(r);return r?.structuredContent||r;}
 function extract(r){if(r?.structuredContent)return r.structuredContent;if(r?.session!==undefined)return r;if(r?.content){for(const c of r.content){if(c.type==='text')try{return JSON.parse(c.text);}catch{}}}return null;}
-function accept(r){const value=extract(r);if(!value||value.session===undefined)return;if(value.error){error.textContent=value.error;return;}const s=value.session;if(state&&s?.id===state.id&&s.revision<state.revision)return;state=s;render();poll();}
+function accept(r){const value=extract(r);if(!value||value.session===undefined)return;if(value.error){error.textContent=value.error;return;}const s=value.session;if(state&&s?.id===state.id&&s.revision<=state.revision){poll();return;}
+ const finished=state?.stage==='awaiting'&&s?.stage==='evaluated';
+ state=s;render();if(finished){error.textContent='';status.textContent='GPT 평가가 저장되었습니다.';}poll();}
 function draftKey(){return state?'ds-auto-draft:'+state.id+':'+state.position+':'+state.round:'';}
-function loadDraft(){try{return localStorage.getItem(draftKey())||'';}catch{return '';}}
-function saveDraft(value){try{localStorage.setItem(draftKey(),value);}catch{}}
+function loadDraft(){const key=draftKey();if(draftCache.has(key))return draftCache.get(key);try{return localStorage.getItem(key)||'';}catch{return '';}}
+function saveDraft(value){const key=draftKey();draftCache.set(key,value);try{localStorage.setItem(key,value);}catch{}}
 function guardArgs(){return {session_id:state.id,expected_revision:state.revision,request_id:rid()};}
 async function run(fn){if(busy)return;busy=true;error.textContent='';status.textContent='저장하고 있습니다…';document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn();if(status.textContent==='저장하고 있습니다…')status.textContent=state?.stage==='awaiting'?'답변 저장 완료 · GPT 평가 대기':'저장되었습니다.';}catch(e){error.textContent=e.message;status.textContent='';}finally{busy=false;render();}}
 const slideMedia=/*SLIDE_MEDIA*/{};
@@ -47,24 +50,34 @@ function render(){
  if(!state){app.innerHTML=`<section class="card hero"><div class="kicker">최신 12장 발표를 마친 다음</div><h1>고객 미팅에서 면접까지,<br><strong>답변을 실제로 연습하세요.</strong></h1><p class="muted">CEO·COO의 질문에 답한 뒤 일반 면접으로 이어집니다. ChatGPT가 답변의 논리와 근거를 평가하고, 방금 답변에 맞는 꼬리질문을 돌려줍니다.</p><div class="courses"><button class="course" data-start="full"><b>전체 리허설 →</b><span>고객 RP 16 + 일반 면접 13문항</span></button><button class="course" data-start="rp"><b>고객 RP 집중</b><span>발표 후 고객 질문 16문항</span></button><button class="course" data-start="interview"><b>일반 면접 집중</b><span>전환 동기·영업 경험 13문항</span></button></div><p class="note">권장 방식: 먼저 직접 답변 → 평가 확인 → 꼬리질문 또는 다시 답하기</p>${!embedded?'<p class="warning">GPT 평가를 받으려면 ChatGPT에 연결된 이 앱에서 리허설을 열어 주세요. 이 웹 화면에서도 보기 선택 연습과 기록 확인은 가능합니다.</p>':''}</section>`;bind();return;}
  const s=state;
  if(s.stage==='complete'){app.innerHTML=`<section class="card hero"><span class="badge">리허설 완료</span><h1>질문에 답한 경험을<br>다음 답변의 근거로.</h1><div class="row"><div class="stat"><b>${s.average??'–'}<small>/10</small></b><span class="meta">장면별 마지막 평가 평균</span></div><div class="stat"><b>${s.completedScenes}</b><span class="meta">완료한 질문</span></div></div><div class="row space"><button data-export>답변·피드백 내려받기</button><button data-home>새 리허설 선택</button></div>${historyHtml()}</section>`;bind();return;}
- const sc=s.scene,key=s.id+':'+s.position+':'+s.round+':'+s.question;if(key!==currentQuestion){currentQuestion=key;started=Date.now();}
+ const sc=s.scene;
+ if(s.stage==='answer'){
+  const key=s.id+':'+s.revision;
+  if(key!==currentQuestion){currentQuestion=key;started=Date.parse(s.updatedAt)||Date.now();}
+ }
  const isInt=s.phase==='interview',phaseBreak=isInt&&s.position>0&&s.history.at(-1)?.scene_id?.startsWith('rp-');
- app.innerHTML=`<div class="flow"><span class="${!isInt?'active':''}">01 고객 RP</span><small>→</small><span class="${isInt?'active':''}">02 일반 면접</span><small style="margin-left:auto">${s.position+1} / ${s.total}</small></div><div class="track"><i style="width:${s.position/s.total*100}%"></i></div>${phaseBreak?'<div class="quote"><b>고객 미팅이 끝났습니다.</b><br>이제 면접관의 입장에서 영업 역량과 경험을 확인합니다.</div>':''}<div class="grid"><section class="card"><div class="row between"><div class="speaker">${isInt?'면접관':sc.speaker==='ME'?'발표자 → '+esc(sc.listener||'고객'):esc(sc.speaker)} · ${s.round?'꼬리질문 '+s.round:esc(sc.title)}</div><span id="timer" class="timer"></span></div><div class="question">${sc.speaker==='ME'&&!s.round?esc(s.question):'“'+esc(s.question)+'”'}</div><div class="context">${esc(sc.context)}</div>${slidesHtml(sc)}${s.stage==='answer'?answerHtml():resultHtml()}<div class="row between space toolbar"><button data-refresh>기록 새로고침</button><button data-export>기록 내려받기</button></div></section><aside class="aside"><section class="card"><div class="label">ANSWER CHECK</div><h3 class="space">이번 답변의 기준</h3>${list(sc.rubric)}<p class="hint">${sc.seconds}초 안에 요점을 먼저 말해 보세요. 시간 초과 시에도 답변은 제출할 수 있습니다.</p><div class="space meta">${s.average!==null?'현재 평균 <b>'+s.average+'/10</b> · ':''}${s.completedScenes}개 질문 평가 완료</div></section><details class="card space"><summary>답변 기록 ${s.history.length}개</summary>${historyHtml()}</details></aside></div>`;
+ app.innerHTML=`<div class="flow"><span class="${!isInt?'active':''}">01 고객 RP</span><small>→</small><span class="${isInt?'active':''}">02 일반 면접</span><small style="margin-left:auto">${s.position+1} / ${s.total}</small></div><div class="track"><i style="width:${s.position/s.total*100}%"></i></div>${phaseBreak?'<div class="quote"><b>고객 미팅이 끝났습니다.</b><br>이제 면접관의 입장에서 영업 역량과 경험을 확인합니다.</div>':''}<div class="grid"><section class="card"><div class="row between"><div class="speaker">${isInt?'면접관':sc.speaker==='ME'?(s.round?esc(sc.listener||'고객'):'발표자 → '+esc(sc.listener||'고객')):esc(sc.speaker)} · ${s.round?'꼬리질문 '+s.round:esc(sc.title)}</div><span id="timer" class="timer"></span></div><div class="question">${sc.speaker==='ME'&&!s.round?esc(s.question):'“'+esc(s.question)+'”'}</div><div class="context">${esc(sc.context)}</div>${slidesHtml(sc)}${s.stage==='answer'?answerHtml():resultHtml()}<div class="row between space toolbar"><button data-refresh>기록 새로고침</button><button data-export>기록 내려받기</button></div></section><aside class="aside"><section class="card"><div class="label">ANSWER CHECK</div><h3 class="space">이번 답변의 기준</h3>${list(sc.rubric)}<p class="hint">${sc.seconds}초 안에 요점을 먼저 말해 보세요. 시간 초과 시에도 답변은 제출할 수 있습니다.</p><div class="space meta">${s.average!==null?'현재 평균 <b>'+s.average+'/10</b> · ':''}${s.completedScenes}개 질문 평가 완료</div></section><details class="card space"><summary>답변 기록 ${s.history.length}개</summary>${historyHtml()}</details></aside></div>`;
  bind();tick();if(s.stage==='answer')timerId=setInterval(tick,1000);
 }
 function answerHtml(){return `<div class="tabs"><button data-tab="free" class="${tab==='free'?'active':''}">직접 답변</button>${!state.round?'<button data-tab="choice" class="'+(tab==='choice'?'active':'')+'">보기로 연습</button>':''}</div>${tab==='choice'&&!state.round?state.scene.options.map(o=>'<button class="option" data-choice="'+o.index+'"><b>'+String.fromCharCode(65+o.index)+'.</b> '+esc(o.text)+'</button>').join(''):`<label for="answer" class="sr-only">면접 답변</label><textarea id="answer" maxlength="6000" placeholder="말하듯이 답변해 보세요. 근거가 확인되지 않은 부분은 가설이나 확인할 질문으로 표현해 주세요.">${esc(loadDraft())}</textarea><div class="row between"><span id="count" class="hint">${loadDraft().length}/6000자 · 입력 중 내용은 이 기기에 임시 저장</span><button class="accent" data-submit>${embedded?'제출하고 GPT 평가 받기':'답변 저장'}</button></div>${!embedded?'<p class="hint">저장한 답변은 ChatGPT에서 이 앱을 열고 “대기 중인 답변을 평가해 줘”라고 말하면 이어서 평가받을 수 있습니다.</p>':''}`}`;}
 const recoveryPrompt='DS AUTO GPT 면접 리허설 앱에서 대기 중인 내 답변을 평가하고 결과를 저장해 줘.';
 function resultHtml(){const s=state;if(s.stage==='awaiting')return `<div class="pending" role="status"><b>답변 저장 완료 · GPT 평가 대기</b><p class="meta">${embedded?'평가가 시작되지 않으면 아래 문장을 현재 ChatGPT 대화에 보내 주세요.':'웹에서 저장한 답변은 ChatGPT 대화에서 평가합니다. 아래 문장을 복사해 이 앱을 연결한 대화에 보내 주세요.'}</p><p>${esc(recoveryPrompt)}</p><div class="row">${embedded?'<button class="primary" data-request>GPT에 평가 요청</button>':'<a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT 열기</a>'}<button data-copy>평가 요청 문장 복사</button></div><p class="hint">답변을 다시 입력할 필요는 없습니다. 평가가 저장되면 여기에 표시됩니다.</p></div><details><summary>제출한 답변 보기</summary><p style="white-space:pre-wrap">${esc(s.answer)}</p></details>`;
- const e=s.evaluation;if(!e)return '';return `<div class="feedback"><div class="row between"><div class="score">${e.score}<small> / 10</small></div><span class="badge">${esc(e.source)}</span></div><div class="quote"><span class="label">면접관의 반응</span><br>${esc(e.reply)}</div><b>잘한 점</b>${list(e.strengths)}<b>다음 답변에서 바꿀 점</b>${list(e.improvements)}${e.flags.length?'<div class="warning"><b>사실 확인</b>'+list(e.flags)+'</div>':''}<details><summary>제출한 답변</summary><p style="white-space:pre-wrap">${esc(s.answer)}</p></details><div class="quote"><span class="label">FOLLOW-UP</span><br>${esc(e.followup)}</div><div class="row"><button class="primary" data-action="next">${s.position===s.total-1?'결과 보기':s.phase==='rp'&&s.scene.id==='rp-nextstep'&&s.mode==='full'?'일반 면접으로 →':'다음 질문 →'}</button>${s.round<2?'<button data-action="followup">꼬리질문에 답하기</button>':''}<button data-action="retry">다시 답하기</button></div></div>`;}
-function historyHtml(){return (state?.history||[]).slice().reverse().map(h=>'<div class="record"><b>'+esc(h.title)+(h.round?' · 꼬리질문'+h.round:'')+' · '+h.evaluation.score+'/10</b><details><summary>답변과 피드백</summary><p>'+esc(h.answer)+'</p><p>'+esc(h.evaluation.reply)+'</p>'+list(h.evaluation.improvements)+'</details></div>').join('')||'<p class="meta">평가를 마친 답변이 여기에 쌓입니다.</p>';}
-function tick(){const el=document.getElementById('timer');if(!el||state?.stage!=='answer')return;const n=Math.floor((Date.now()-started)/1000),target=state.scene.seconds;el.textContent=n+'초 / 권장 '+target+'초';el.classList.toggle('over',n>target);}
+ const e=s.evaluation;if(!e)return '';return `<div class="feedback"><div class="row between"><div class="score">${e.score}<small> / 10</small></div><span class="badge">${esc(e.source)}</span></div><div class="quote"><span class="label">면접관의 반응</span><br>${esc(e.reply)}</div>${feedbackHtml(e)}${e.flags.length?'<div class="warning"><b>사실 확인</b>'+list(e.flags)+'</div>':''}<details><summary>제출한 답변</summary><p style="white-space:pre-wrap">${esc(s.answer)}</p></details><div class="quote"><span class="label">FOLLOW-UP</span><br>${esc(e.followup)}</div><div class="row"><button class="primary" data-action="next">${s.position===s.total-1?'결과 보기':s.phase==='rp'&&s.scene.id==='rp-nextstep'&&s.mode==='full'?'일반 면접으로 →':'다음 질문 →'}</button>${s.round<2?'<button data-action="followup">꼬리질문에 답하기</button>':''}<button data-action="retry">다시 답하기</button></div></div>`;}
+function feedbackHtml(e){
+ if(e.source==='정해진 보기 기준')return '<b>선택한 보기 해설</b><p>'+esc(e.explanation||e.strengths?.[0]||'')+'</p>';
+ return '<b>잘한 점</b>'+list(e.strengths)+'<b>다음 답변에서 바꿀 점</b>'+list(e.improvements);
+}
+function historyHtml(){
+ return (state?.history||[]).slice().reverse().map(h=>'<div class="record"><b>'+esc(h.title)+(h.round?' · 꼬리질문 '+h.round:'')+' · '+h.evaluation.score+'/10</b><details><summary>질문·답변과 피드백</summary>'+(h.question?'<p><b>질문</b> '+esc(h.question)+'</p>':'')+'<p><b>내 답변</b> '+esc(h.answer)+'</p>'+feedbackHtml(h.evaluation)+'<p>'+esc(h.evaluation.reply)+'</p></details></div>').join('')||'<p class="meta">평가를 마친 답변이 여기에 쌓입니다.</p>';
+}
+function tick(){const el=document.getElementById('timer');if(!el||state?.stage!=='answer')return;const n=Math.max(0,Math.floor((Date.now()-started)/1000)),target=state.scene.seconds;el.textContent=n+'초 / 권장 '+target+'초';el.classList.toggle('over',n>target);}
 async function requestEvaluation(){
  const prompt=recoveryPrompt+' 현재 답변 ID '+state.answer_id+'에 대해 get_roleplay_context의 평가 기준을 읽고 record_roleplay_evaluation으로 저장해 줘.';
  if(bridgeReady){
   try{
    const result=await rpc('ui/message',{role:'user',content:[{type:'text',text:prompt}]});
    if(result?.isError||result?.error)throw new Error('평가 요청이 전달되지 않았습니다.');
-   status.textContent='ChatGPT에 평가 요청을 전달했습니다. 결과를 기다리는 중입니다.';
+   if(state?.stage==='awaiting')status.textContent='ChatGPT에 평가 요청을 전달했습니다. 결과를 기다리는 중입니다.';
    return;
   }catch(err){
    if(!window.openai?.sendFollowUpMessage)throw new Error('답변은 저장됐습니다. 아래 평가 요청 문장을 현재 대화에 보내 주세요.');
@@ -72,7 +85,20 @@ async function requestEvaluation(){
  }
  if(!window.openai?.sendFollowUpMessage)throw new Error('아래 평가 요청 문장을 ChatGPT에 보내 주세요.');
  await window.openai.sendFollowUpMessage({prompt});
- status.textContent='ChatGPT에 평가 요청을 전달했습니다. 결과를 기다리는 중입니다.';
+ if(state?.stage==='awaiting')status.textContent='ChatGPT에 평가 요청을 전달했습니다. 결과를 기다리는 중입니다.';
+}
+function openExport(){
+ const content=JSON.stringify({title:'DS AUTO 면접 리허설',exportedAt:new Date().toISOString(),session:state},null,2);
+ const url=URL.createObjectURL(new Blob([content],{type:'application/json'}));
+ const dialog=document.createElement('dialog');
+ dialog.setAttribute('aria-label','답변 기록 내보내기');
+ dialog.innerHTML='<h3>답변 기록 내보내기</h3><p>파일을 저장하거나 아래 기록을 복사해 주세요.</p><textarea readonly aria-label="내보낼 JSON 기록"></textarea><div class="row"><a download="DS_AUTO_리허설_기록.json">JSON 파일 저장</a><button>닫기</button></div>';
+ dialog.querySelector('textarea').value=content;
+ dialog.querySelector('a').href=url;
+ dialog.querySelector('button').onclick=()=>dialog.close();
+ dialog.onclose=()=>{URL.revokeObjectURL(url);dialog.remove();};
+ document.body.append(dialog);
+ dialog.showModal();
 }
 function bind(){
  app.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>run(()=>call('start_roleplay',{mode:b.dataset.start,request_id:rid()})));
@@ -85,7 +111,7 @@ function bind(){
  app.querySelector('[data-request]')?.addEventListener('click',()=>run(requestEvaluation));
  app.querySelector('[data-refresh]')?.addEventListener('click',()=>run(()=>call('get_roleplay_context')));
  app.querySelector('[data-home]')?.addEventListener('click',()=>{state=null;render();});
- app.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>{const content=JSON.stringify({title:'DS AUTO 면접 리허설',exportedAt:new Date().toISOString(),session:state},null,2);const url=URL.createObjectURL(new Blob([content],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='DS_AUTO_리허설_기록.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+ app.querySelectorAll('[data-export]').forEach(button=>button.onclick=openExport);
  if(busy)app.querySelectorAll('button').forEach(b=>b.disabled=true);
 }
 function poll(){clearTimeout(pollId);if(state?.stage==='awaiting')pollId=setTimeout(async()=>{try{await call('get_roleplay_context');}catch(e){status.textContent='평가 결과를 다시 확인하는 중입니다.';poll();}},4500);}

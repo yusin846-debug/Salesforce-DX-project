@@ -20,3 +20,93 @@ test('flags cap scores, no evaluation forgery from normal web endpoint',async()=
 test('MCP discovery, tools, resources, UI metadata and origin checks',async()=>{const e=env();assert.deepEqual((await rpc(e,'server/discover')).result.supportedVersions,['2026-07-28']);assert.equal((await rpc(e,'tools/list')).result.tools.length,6);const uri=TOOLS[0]._meta.ui.resourceUri;const resource=(await rpc(e,'resources/read',{uri})).result.contents[0];assert.equal(resource.mimeType,'text/html;profile=mcp-app');assert.match(resource.text,/ui\/initialize/);assert.match(resource.text,/ui\/message/);assert.doesNotMatch(resource.text,/[\u3040-\u30ff]/);const untrusted=await worker.fetch(new Request('https://app.test/api/tool',{method:'POST',headers:{origin:'https://other.test','oai-authenticated-user-id':'alice'},body:'{}'}),e);assert.equal(untrusted.status,403);const missing=await worker.fetch(new Request('https://app.test/api/tool',{method:'POST',headers:{origin:'https://app.test'},body:'{}'}),e);assert.equal(missing.status,401);});
 test('all answers complete and final summary counts latest scene scores',async()=>{const e=env();let r=await start(e,'alice','interview');for(let i=0;i<13;i++){r=await callTool('submit_roleplay_answer',mutate(r.session,{choice_index:0}),e,'alice');r=await callTool('advance_roleplay',mutate(r.session,{action:'next'}),e,'alice');}assert.equal(r.session.stage,'complete');assert.equal(r.session.completedScenes,13);assert.ok(Number.isFinite(r.session.average));});
 async function rpc(e,method,params={}){const response=await worker.fetch(new Request('https://app.test/mcp',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})}),e);return response.json();}
+
+test('every choice produces the matching score, explanation and saved question across all 29 scenes',async()=>{
+ const e=env(), actor='matrix', data=JSON.parse(await readFile(new URL('../content/scenarios.json',import.meta.url),'utf8'));
+ let result=await start(e,actor), optionsTested=0;
+ for(const scene of data.scenes){
+  const initial=result.session;
+  assert.equal(initial.scene.id,scene.id);
+  assert.ok(initial.question.trim());
+  assert.deepEqual(initial.scene.slides.map(slide=>slide.no),scene.slideRefs);
+  const before=new Map(e.BUCKET.map);
+  for(const [i,option] of scene.opts.entries()){
+   e.BUCKET.map=new Map(before);
+   result=await callTool('submit_roleplay_answer',mutate(initial,{choice_index:i}),e,actor);
+   const saved=result.session.history.at(-1);
+   assert.equal(saved.answer,option.t);
+   assert.equal(saved.question,initial.question);
+   assert.equal(saved.evaluation.score,option.s);
+   assert.equal(saved.evaluation.explanation,option.f);
+   assert.equal(saved.evaluation.reply,option.r);
+   assert.ok(saved.evaluation.followup.trim());
+   optionsTested++;
+  }
+  result=await callTool('advance_roleplay',mutate(result.session,{action:'next'}),e,actor);
+ }
+ assert.equal(optionsTested,117);
+ assert.equal(result.session.completedScenes,29);
+ assert.equal(result.session.stage,'complete');
+});
+
+test('followup retries use their parent round, the customer role and the correct question in the record',async()=>{
+ const e=env(), actor='followup';
+ let result=await start(e,actor,'rp');
+ const change=async(name,args)=>{result=await callTool(name,mutate(result.session,args),e,actor);};
+ const answer=async(answer)=>change('submit_roleplay_answer',{answer});
+ const score=async()=>{result=await callTool('record_roleplay_evaluation',grade(result.session),e,actor);};
+ await change('submit_roleplay_answer',{choice_index:0});
+ await change('advance_roleplay',{action:'next'});
+ await answer('원래 발표');assert.equal(result.pendingEvaluation.role,'CEO');await score();
+ await change('advance_roleplay',{action:'followup'});
+ await answer('첫 꼬리질문 답변');await score();
+ await change('advance_roleplay',{action:'retry'});
+ await answer('첫 꼬리질문 수정');
+ assert.equal(result.pendingEvaluation.previousAnswer,'원래 발표');await score();
+ await change('advance_roleplay',{action:'followup'});await answer('두 번째 꼬리질문');
+ assert.equal(result.pendingEvaluation.previousAnswer,'첫 꼬리질문 수정');await score();
+ await assert.rejects(change('advance_roleplay',{action:'followup'}),/2회/);
+ assert.equal(result.session.history.at(-1).question,result.session.question);
+});
+
+test('standalone API validates input, resumes each mode and completes with JSON history',async()=>{
+ const e=env();
+ const request=async(raw)=>worker.fetch(new Request('https://test.local/api/tool',{
+  method:'POST',headers:{origin:'https://test.local','oai-authenticated-user-id':'web'},body:raw
+ }),e);
+ for(const raw of ['{','null','[]'])assert.equal((await request(raw)).status,400);
+ const call=async(name,args={})=>{
+  const res=await request(JSON.stringify({name,arguments:args}));
+  assert.equal(res.status,200);return (await res.json()).structuredContent.session;
+ };
+ for(const mode of ['rp','interview','full']){
+  let session=await call('start_roleplay',{mode,request_id:crypto.randomUUID()});
+  const total=session.total;
+  for(let i=0;i<total;i++){
+   session=await call('submit_roleplay_answer',mutate(session,{choice_index:0}));
+   assert.deepEqual(await call('get_roleplay_context'),session);
+   session=await call('advance_roleplay',mutate(session,{action:'next'}));
+  }
+  assert.equal(session.stage,'complete');
+  assert.equal(session.history.length,total);
+  assert.equal(session.average,session.history.reduce((sum,h)=>sum+h.evaluation.score,0)/total);
+ }
+});
+
+test('a reused request ID cannot silently acknowledge different answers or an unsaved evaluation',async()=>{
+ const e=env();
+ const first=await start(e);
+ const submission=mutate(first.session,{answer:'첫 번째 답변'});
+ const pending=await callTool('submit_roleplay_answer',submission,e,'alice');
+ await assert.rejects(callTool('submit_roleplay_answer',{...submission,answer:'바뀐 답변'},e,'alice'),/요청 ID/);
+ await assert.rejects(callTool('record_roleplay_evaluation',grade(pending.session,{request_id:submission.request_id}),e,'alice'),/요청 ID/);
+ assert.equal((await callTool('get_roleplay_context',{},e,'alice')).session.stage,'awaiting');
+ assert.equal((await callTool('record_roleplay_evaluation',grade(pending.session),e,'alice')).session.stage,'evaluated');
+});
+
+test('MCP rejects browser-origin cross-site mutations before touching the session',async()=>{
+ const e=env();
+ const req=new Request('https://app.test/mcp',{method:'POST',headers:{origin:'https://other.test','oai-authenticated-user-id':'alice'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'start_roleplay',arguments:{mode:'full',request_id:'cross-site'}}})});
+ assert.equal((await worker.fetch(req,e)).status,403);
+ assert.equal((await callTool('get_roleplay_context',{},e,'alice')).session,null);
+});
