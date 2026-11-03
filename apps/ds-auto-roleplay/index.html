@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>DS AUTO 모의 롤플레이</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600;900&display=swap">
+<style>
+/* Layout: one interview-sheet column — speaker on the left, the candidate's options below, an evaluation sheet with a stamp at the end */
+:root{
+  --bg:#EDF1F4; --paper:#FFFFFF; --ink:#13202B; --muted:#5A6774; --line:#D3DBE2;
+  --accent:#0B6E8E; --accent-soft:#DDEEF4; --ceo:#8A5A2B; --ceo-soft:#F3E8DC;
+  --good:#2E7A4E; --good-soft:#E1F1E7; --warn:#A86E14; --warn-soft:#F7ECD8; --bad:#B23A2E; --bad-soft:#F7E1DE;
+  --f-display:"Noto Serif KR","Apple SD Gothic Neo",serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F161D; --paper:#17212B; --ink:#E5EBF0; --muted:#94A2AF; --line:#2A3744;
+  --accent:#55B7D4; --accent-soft:#15323D; --ceo:#D9A06A; --ceo-soft:#33271C;
+  --good:#62C48F; --good-soft:#15301F; --warn:#E3AE52; --warn-soft:#352914; --bad:#EA7064; --bad-soft:#3A1C19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F161D; --paper:#17212B; --ink:#E5EBF0; --muted:#94A2AF; --line:#2A3744;
+  --accent:#55B7D4; --accent-soft:#15323D; --ceo:#D9A06A; --ceo-soft:#33271C;
+  --good:#62C48F; --good-soft:#15301F; --warn:#E3AE52; --warn-soft:#352914; --bad:#EA7064; --bad-soft:#3A1C19; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(26px,5vw,34px);font-weight:900}
+h2{font-size:22px;font-weight:900}
+p{margin:0}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:22px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--accent);background:var(--accent);color:var(--paper);border-radius:8px;padding:10px 18px;font-weight:700}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* intro */
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.brief div{border-top:2px solid var(--ink);padding-top:8px;min-width:0}
+.brief b{display:block;font-size:13px;color:var(--muted);font-weight:500}
+.prio{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.prio span{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.prio span.top{border-color:var(--accent);color:var(--accent);font-weight:700}
+
+/* header + progress */
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.steps{display:flex;gap:4px}
+.steps i{width:22px;height:6px;border-radius:3px;background:var(--line);display:block}
+.steps i.done{background:var(--accent)}
+.steps i.now{background:var(--ink)}
+
+/* speaker */
+.scene{display:flex;flex-direction:column;gap:14px}
+.who{display:flex;gap:12px;align-items:flex-start}
+.badge{flex:0 0 auto;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;
+  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent)}
+.badge.ceo{background:var(--ceo-soft);color:var(--ceo);border-color:var(--ceo)}
+.badge.int{background:var(--paper);color:var(--ink);border-color:var(--ink)}
+.say{min-width:0}
+.say .name{font-size:13px;color:var(--muted)}
+.say q{display:block;font-family:var(--f-display);font-weight:600;font-size:18px;line-height:1.55;quotes:"“" "”"}
+.ctx{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+.badge.me{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.lead{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.lead .badge{width:36px;height:36px;font-size:11px}
+.lead p{font-family:var(--f-display);font-weight:600}
+.slide{border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:18px 20px;display:flex;flex-direction:column;gap:10px;aspect-ratio:16/8;max-width:100%;overflow:auto}
+.slide .no{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-weight:600}
+.slide h3{font-size:clamp(17px,3.6vw,22px)}
+.slide ul{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.slide .tag{font-size:12px;color:var(--muted)}
+.kind{font-size:11px;font-weight:700;letter-spacing:.06em;border:1px solid currentColor;border-radius:4px;padding:0 6px;margin-left:6px}
+@media (max-width:520px){.slide{aspect-ratio:auto}}
+
+/* modes */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line)}
+.tabs button{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;color:var(--muted);font-weight:500}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:700}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{display:grid;grid-template-columns:28px 1fr;gap:10px;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt .k{font-family:var(--f-mono);font-weight:600;color:var(--muted)}
+.opt span{min-width:0}
+.opt.picked{border-color:var(--ink);border-width:2px;padding:11px 13px}
+.opt:disabled{cursor:default}
+textarea{width:100%;min-height:130px;resize:vertical;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px}
+.hint{font-size:13px;color:var(--muted)}
+
+/* feedback */
+.react{display:flex;gap:12px;align-items:flex-start}
+.react .badge{width:40px;height:40px;font-size:12px}
+.react p{font-family:var(--f-display);font-weight:600;font-size:16px}
+.fb{border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-weight:600;font-size:13px;border-radius:999px;padding:2px 10px}
+.chip.good{background:var(--good-soft);color:var(--good)}
+.chip.mid{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.flag{font-size:13px;font-weight:700;color:var(--bad)}
+details summary{cursor:pointer;color:var(--accent);font-weight:500;font-size:14px}
+details p{margin-top:6px;font-size:14px}
+.thinking{font-size:14px;color:var(--muted)}
+.thread{display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;gap:10px;align-items:flex-start}
+.msg .badge{width:36px;height:36px;font-size:11px}
+.msg p{min-width:0}
+.msg.cust p{font-family:var(--f-display);font-weight:600;font-size:16px}
+.msg.mine p{font-size:14px;color:var(--muted)}
+.btn.small{padding:6px 12px;font-size:13px;margin-top:8px}
+
+/* result */
+.verdict{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}
+.score{font-family:var(--f-mono);font-size:56px;font-weight:600;line-height:1}
+.score small{font-size:18px;color:var(--muted)}
+.stamp{width:128px;height:128px;border-radius:50%;border:5px solid currentColor;display:grid;place-items:center;transform:rotate(-12deg);
+  font-family:var(--f-display);font-weight:900;font-size:30px;text-align:center;line-height:1.1}
+.stamp.pass{color:var(--good)} .stamp.fail{color:var(--bad)}
+.stamp small{display:block;font-size:12px;font-family:var(--f-body);font-weight:700;letter-spacing:.05em}
+.crit{display:flex;flex-direction:column;gap:10px}
+.crit .line{display:grid;grid-template-columns:150px 1fr 40px;gap:10px;align-items:center}
+.track{height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--accent)}
+.track i.low{background:var(--bad)} .track i.mid{background:var(--warn)}
+.review{width:100%;border-collapse:collapse;font-size:14px}
+.review th,.review td{text-align:left;padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
+.review th{font-size:12px;color:var(--muted);font-weight:500}
+.scroll{overflow-x:auto}
+@media (max-width:520px){
+  .verdict{grid-template-columns:1fr}
+  .stamp{width:104px;height:104px;font-size:24px}
+  .crit .line{grid-template-columns:1fr 40px}
+  .crit .line .track{grid-column:1/-1;grid-row:2}
+}
+@media (prefers-reduced-motion:no-preference){
+  .stamp.show{animation:stamp .35s ease-out}
+  @keyframes stamp{from{transform:rotate(-12deg) scale(1.6);opacity:0}to{transform:rotate(-12deg) scale(1);opacity:1}}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- INTRO -->
+  <section id="intro" class="sheet" style="display:flex;flex-direction:column;gap:18px">
+    <div>
+      <p class="eyebrow">CBU AE 3차 · 케이스 롤플레이 연습</p>
+      <h1>DS AUTO 모의 롤플레이</h1>
+    </div>
+    <p>발표 장표를 설명하는 장면과 대표·COO의 질문에 답하는 장면이 섞여 나옵니다. 모든 장면에서 답을 고르거나 직접 써서 답하면, 마지막에 100점 만점 점수와 합격 여부가 나옵니다. 합격선은 75점이고, 치명적 실수(레드 플래그)가 2개 이상이면 점수와 상관없이 불합격입니다.</p>
+    <div class="brief">
+      <div><b>상황</b>웹사이트로 미팅을 요청한 DS AUTO와의 첫 미팅. Salesforce 계약 관계는 없음</div>
+      <div><b>참석자</b>대표(CEO), COO</div>
+      <div><b>COO가 메일로 밝힌 우선순위</b>
+        <span class="prio"><span class="top">① 팔로업 가시성·자산화</span><span>② 고객 이력 통합</span><span>③ 재구매</span></span>
+      </div>
+    </div>
+    <p class="hint" id="aiNote">직접 답하기(AI 평가)를 쓸 수 있는지 확인하는 중입니다.</p>
+    <div class="row">
+      <button class="btn" id="startBtn">미팅 시작</button>
+      <span class="hint" id="bestNote"></span>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section id="play" hidden>
+    <div class="wrap">
+      <div class="bar">
+        <span class="eyebrow" id="stageLabel"></span>
+        <div class="steps" id="steps" aria-hidden="true"></div>
+      </div>
+      <div class="sheet scene">
+        <div class="lead" id="lead" hidden><div class="badge" id="leadBadge"></div><div><div class="hint" id="leadName"></div><p id="leadSay"></p></div></div>
+        <div class="slide" id="slide" hidden><span class="no" id="slideNo"></span><h3 id="slideTitle"></h3><ul id="slidePts"></ul><span class="tag" id="slideTag"></span></div>
+        <div class="who">
+          <div class="badge" id="badge"></div>
+          <div class="say"><div class="name" id="spName"></div><q id="spSay"></q></div>
+        </div>
+        <p class="ctx" id="ctx"></p>
+      </div>
+
+      <div class="sheet" style="display:flex;flex-direction:column;gap:14px" id="answerBox">
+        <div class="tabs" role="tablist" id="tabs">
+          <button role="tab" id="tabPick" aria-selected="true">답변 고르기</button>
+          <button role="tab" id="tabWrite" aria-selected="false" hidden>직접 답하기 · AI 평가</button>
+        </div>
+        <div class="opts" id="opts"></div>
+        <div id="writeBox" hidden style="display:flex;flex-direction:column;gap:10px">
+          <label for="freeText" class="hint">고객에게 실제로 말하듯 써 주세요. 30초 분량(200~300자)이 적당합니다.</label>
+          <textarea id="freeText" maxlength="1200"></textarea>
+          <div class="row"><button class="btn" id="submitText">답변 제출</button><span class="thinking" id="thinking" hidden>평가하는 중입니다…</span></div>
+          <p class="hint" id="writeErr" hidden></p>
+        </div>
+      </div>
+
+      <div class="sheet" id="resultBox" hidden style="display:flex;flex-direction:column;gap:14px">
+        <div class="thread" id="thread"></div>
+        <div class="fb">
+          <div class="row"><span class="chip" id="rScore"></span><span class="hint" id="rScoreNote"></span><span class="flag" id="rFlag" hidden></span></div>
+          <p id="rFeedback"></p>
+          <details id="rModel"><summary>모범 답안 보기</summary><p id="rModelText"></p><button class="btn ghost small" id="useModel" hidden>이 답안을 고쳐서 다시 답하기</button></details>
+        </div>
+        <div id="followBox" hidden style="display:flex;flex-direction:column;gap:8px">
+          <label for="followText" class="hint" id="followLabel"></label>
+          <textarea id="followText" maxlength="1200" style="min-height:90px"></textarea>
+          <div class="row"><button class="btn" id="followBtn">이어서 답하기</button><span class="thinking" id="followThinking" hidden>상대가 듣고 있습니다…</span></div>
+          <p class="hint" id="followErr" hidden></p>
+        </div>
+        <p class="hint" id="resolvedNote" hidden style="color:var(--good);font-weight:700"></p>
+        <div class="row"><button class="btn" id="nextBtn">다음</button><button class="btn ghost" id="moreBtn" hidden>덧붙여 말하기</button><button class="btn ghost" id="retryBtn">이 장면 다시 답하기</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="final" hidden>
+    <div class="wrap">
+      <div class="sheet" style="display:flex;flex-direction:column;gap:18px">
+        <div class="verdict">
+          <div>
+            <p class="eyebrow">평가 결과</p>
+            <div class="score mono" id="fScore"></div>
+            <p id="fGrade" style="font-weight:700;margin-top:6px"></p>
+            <p class="muted" id="fReason" style="font-size:14px"></p>
+          </div>
+          <div class="stamp" id="fStamp"></div>
+        </div>
+      </div>
+      <div class="sheet" style="display:flex;flex-direction:column;gap:14px">
+        <h3>항목별 점수</h3>
+        <div class="crit" id="fCrit"></div>
+      </div>
+      <div class="sheet" id="fFlagsBox" style="display:flex;flex-direction:column;gap:10px">
+        <h3>레드 플래그</h3>
+        <ul id="fFlags" style="margin:0;padding-left:20px"></ul>
+      </div>
+      <div class="sheet" style="display:flex;flex-direction:column;gap:10px">
+        <h3>장면별 복기</h3>
+        <div class="scroll"><table class="review"><thead><tr><th>장면</th><th>점수</th><th>피드백</th></tr></thead><tbody id="fReview"></tbody></table></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="againBtn">다시 하기</button>
+        <button class="btn ghost" id="homeBtn">처음으로</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CRIT = {
+  lead:{label:"미팅 주도"},
+  discovery:{label:"질문·진단 확인"},
+  language:{label:"고객 언어·간결함"},
+  honesty:{label:"정직·정확성"},
+  value:{label:"대표 관점 가치"},
+  trust:{label:"공감·신뢰"},
+  pitch:{label:"장표 설명력"}
+};
+const SP = {
+  ME:{name:"내 차례 · 장표 설명", short:"나", cls:"me"},
+  CEO:{name:"대표 (CEO)", short:"대표", cls:"ceo"},
+  COO:{name:"COO", short:"COO", cls:""},
+  INT:{name:"면접관 (롤플레이 종료 후)", short:"면접관", cls:"int"}
+};
+// opts: t=text, s=score(0-10), f=feedback, r=reaction, flag=red flag reason
+const Q = [
+ {title:"오프닝과 Up-Front Contract", sp:"CEO", crit:["lead","language"],
+  say:"반갑습니다. 바쁜 시간이니 바로 시작하시죠.",
+  ctx:"첫 1분입니다. 상대가 들을 준비를 할 시간을 주면서, 진행 방식에 가볍게 동의를 받는 것이 목표입니다.",
+  ideal:"감사 인사와 짧은 공감(라포)으로 시작해 상대가 받아들일 시간을 줌, 진행 방식은 한 문장으로 가볍게 제안하고 동의를 받음, 질문은 한 번에 하나, 우선순위 확인은 동의를 받은 다음",
+  pitfalls:"긴 자기소개나 회사 소개, 바로 발표 시작, 첫마디부터 문제를 단정, 첫마디에 합의와 질문을 한꺼번에 몰아서 던짐",
+  opts:[
+   {t:"시간 내주셔서 감사합니다. 준비하면서 카통령 채널 영상을 꽤 봤는데, 상담하시는 모습이 인상 깊었습니다. 본격적으로 말씀 나누기 전에 진행 방식만 가볍게 여쭤봐도 될까요? 25분 정도 제가 준비한 내용을 말씀드리면서 중간중간 여쭤보고, 끝에 더 볼 만한지 같이 정하면 어떨까 합니다.", s:10,
+    r:"네, 그렇게 하죠. 영상까지 보셨어요?", f:"감사와 가벼운 공감으로 상대가 들을 준비를 할 시간을 주고, 진행 방식은 한 문장으로 제안해 동의를 받았어요. 우선순위 확인은 대표가 '그렇게 하죠'라고 답한 다음 한 문장으로 이어가면 됩니다."},
+   {t:"감사합니다. 시작 전에 진행 방식만 맞추고 싶습니다. 25분 정도 설명과 질문을 섞어 진행하고, 마지막에는 더 검증해 볼 가치가 있는지와 다음 단계를 함께 정해도 될까요? COO님께서 메일로 팔로업 가시성, 고객 이력 통합, 재구매 순서로 말씀하셨는데 대표님 생각도 같으신지 먼저 여쭙고 싶습니다.", s:7,
+    r:"아… 네. 우선순위요? 잠깐만요, 일단 들어보고 말씀드릴게요.", f:"내용은 맞지만 첫마디에 합의 두 가지와 질문까지 몰아서 던져, 대표가 받아들일 준비가 안 됐어요. 인사와 공감으로 한 박자 쉬고, 진행 방식만 먼저, 우선순위는 그다음에 물어보세요."},
+   {t:"네, 먼저 저와 Salesforce를 간단히 소개드리겠습니다. Salesforce는 1999년에 설립된 CRM 기업으로, 전 세계 15만 개 이상의 고객사와 함께하고 있으며…", s:3,
+    r:"(시계를 본다) 회사 소개는 홈페이지에서 봤어요.", f:"2차 면접에서 지적받은 '장황한 소개'를 그대로 반복했어요. 회사 소개는 고객이 물을 때만 짧게 하세요."},
+   {t:"네, 바로 준비한 자료 보여드리겠습니다. 총 10장이고 25분 정도 걸립니다.", s:6,
+    r:"네, 보시죠.", f:"시간은 밝혔지만 마지막에 무엇을 정할지, 고객이 무엇을 기대하는지 묻지 않았어요. 미팅이 아니라 발표가 됩니다."},
+   {t:"제가 분석해 보니 DS AUTO는 부서별 시스템이 분리돼 있어서 고객 이탈이 심각하실 것 같습니다. 오늘 그 해결책을 드리겠습니다.", s:1, flag:"첫마디부터 고객 문제를 단정",
+    r:"심각하다고요? 저희 데이터를 보신 것도 아닌데요.", f:"확인하지 않은 진단을 선언하면 고객이 바로 방어적으로 됩니다. 진단은 질문으로 확인받으세요."}
+  ]},
+ {title:"고객 경험 이야기", sp:"CEO", crit:["trust","honesty"],
+  say:"다른 딜러한테 사셨다고요? 솔직히 가격 때문 아니에요?",
+  ctx:"내 경험은 대화를 여는 계기입니다. 원인을 단정하거나 일반화하지 않는 것이 핵심입니다.",
+  ideal:"짧은 사실, 1인 딜러가 다음 단계를 한발 앞서 챙긴 점, 담당자는 전문적이었다는 존중, 내부 원인은 모른다는 구분, 현장에서도 그런지 질문",
+  pitfalls:"시스템 탓으로 단정, '수천 명이 겪는다'는 일반화, 특정 직원 탓, 회피하고 솔루션으로 넘어가기",
+  opts:[
+   {t:"가격보다는 다른 1인 딜러분이 다음 단계를 한발 앞서 챙겨주신 게 컸습니다. DS AUTO 담당자분들은 전문적이셨는데, 일부 내용을 다시 설명한 경험이 있었습니다. 내부 이유는 제가 알 수 없어서, 현장에서도 비슷한 경우가 있는지 여쭤보고 싶었습니다.", s:10,
+    r:"음, 다시 설명했다라… 그런 얘기 가끔 듣긴 해요.", f:"내 경험과 원인 추정을 분리하고, 조직 전체의 문제는 질문으로 확인했어요. 신뢰를 얻는 방식입니다."},
+   {t:"솔직히 부서마다 시스템이 따로라서 정보가 안 넘어가더라고요. 그래서 늦을 수밖에 없었습니다. 아마 고객 수천 명이 같은 일을 겪고 있을 겁니다.", s:3, flag:"한 번의 경험으로 원인 단정·일반화",
+    r:"한 번 상담받아 보시고 그걸 어떻게 아세요?", f:"고객으로서 확인할 수 없는 원인을 단정하고 일반화했어요. 경험은 사실만, 원인은 질문으로."},
+   {t:"가격도 조금 있었고 여러 이유가 있었는데요, 중요한 건 그게 아니라 오늘 말씀드릴 솔루션이 바로 그 부분을 해결한다는 점입니다.", s:5,
+    r:"그래서 이유가 뭐였어요?", f:"질문을 피하고 솔루션으로 넘어갔어요. 장황하고 회피하는 답으로 들립니다."},
+   {t:"담당하셨던 컨설턴트분이 연락을 잘 안 주셔서요.", s:2,
+    r:"(COO를 쳐다본다) 누구였는지 나중에 알려주세요.", f:"특정 직원 탓으로 들려요. 고객사의 직원을 비난하면 미팅 분위기가 바로 식습니다."}
+  ]},
+ {title:"핵심 질문", sp:"COO", crit:["discovery","language"],
+  say:"메일로도 말씀드렸지만, 담당자별로 안건을 주는데 자산화가 안 돼요. 그래서 어떻게 해결해 주실 건데요?",
+  ctx:"COO가 바로 답을 요구합니다. 처방 전에 현재 상태를 확인하는 질문이 필요합니다.",
+  ideal:"답하기 전 양해를 구하고 현재 방식 질문(진행 확인 방식, 담당자 변경 시 인계), 가능하면 수치 질문",
+  pitfalls:"질문 없이 처방, 리드·기회·파이프라인 같은 용어 남발, '저희만 쓰면 다 해결' 같은 과장",
+  opts:[
+   {t:"답을 드리기 전에 하나만 여쭤도 될까요? 지금 배분된 안건의 진행 상황은 어떻게 확인하고 계세요? 주간 회의나 엑셀 취합 같은 방식일까요? 그리고 담당자가 바뀌면 그 고객은 어떻게 이어받나요?", s:10,
+    r:"솔직히 견적 보내고 나서 누가 언제 다시 연락했는지 잘 몰라요. 매주 팀장들한테 엑셀로 받는데 그것도 다 믿기 어렵고요.", f:"처방 전에 현재 방식과 인계 과정을 물었어요. 다음 장면에서 쓸 재료를 고객에게서 얻었습니다."},
+   {t:"Sales Cloud의 리드 할당 규칙과 기회 단계, 대시보드를 쓰시면 됩니다. 리드를 기회로 전환하면 파이프라인이 자동으로 관리됩니다.", s:4,
+    r:"리드…를 기회로요? 그게 무슨 말인지 잘 모르겠네요.", f:"질문 없이 처방했고, 고객이 모르는 용어를 썼어요. '문의 고객', '진행 중인 상담 건'처럼 고객 언어로 말하세요."},
+   {t:"네, 그 부분을 위해 세 단계 해결 방향을 준비했습니다. 바로 보여드리겠습니다.", s:6,
+    r:"네, 보시죠.", f:"준비는 좋지만 현재 상태를 확인하지 않았어요. 고객 답에 따라 보여줄 내용이 달라져야 합니다."},
+   {t:"그건 저희 시스템만 쓰시면 다 해결됩니다. 많은 고객사가 그렇게 해결했습니다.", s:1, flag:"근거 없는 과장",
+    r:"다 해결된다는 말은 영업하시는 분들이 다 하시던데요.", f:"근거 없이 '다 해결'을 약속했어요. 신뢰를 잃는 가장 빠른 방법입니다."}
+  ]},
+ {title:"진단 확인", sp:"COO", crit:["discovery","trust"],
+  say:"솔직히 견적 보내고 나서 누가 언제 다시 연락했는지 잘 몰라요. 매주 팀장들한테 엑셀로 받는데 그것도 다 믿기 어렵고요.",
+  ctx:"고객이 문제를 말했습니다. 바로 해결책으로 가기 전에, 이해한 내용을 정리해 확인받을 차례입니다.",
+  ideal:"고객 말을 그대로 정리해 확인('~라는 말씀이시죠?'), 고객이 꼽은 문제에 맞는 화면(다음 할 일·기한·알림)으로 초점 조정, 응대 기준 질문",
+  pitfalls:"확인 없이 대시보드로 직행, '실시간으로 다 보인다' 같은 과장, 영업사원 관리 부실이라고 비난, 고객이 말하지 않은 문제로 화면 전환",
+  opts:[
+   {t:"말씀을 정리하면, 정보를 모으는 것 자체보다 견적 후 연락이 빠진 건을 제때 발견하는 게 먼저이고, 지금은 팀장님들 엑셀 보고에 의존하셔서 어렵다는 말씀이시죠? 그렇다면 다음 연락 일정과 기한, 놓쳤을 때 알림이 어떻게 보이는지 중심으로 보여드리겠습니다. 견적 후 며칠 안에 다시 연락하는 게 기준이신가요?", s:10,
+    r:"맞아요. 기준은 사흘인데 지켜지는지 몰라요.", f:"이해한 문제를 확인받고, 그에 맞춰 화면의 초점을 바꾸고, 응대 기준까지 물었어요. 함께 문제를 발견하는 AE의 모습입니다."},
+   {t:"알겠습니다. 그럼 저희 대시보드를 보여드리겠습니다. 실시간으로 다 보입니다.", s:5,
+    r:"실시간이요? 입력을 안 하면요?", f:"확인 단계를 건너뛰었고 '실시간으로 다'라는 표현이 과장으로 들려요."},
+   {t:"그건 결국 영업사원 관리가 제대로 안 되고 있다는 뜻이네요.", s:2, flag:"고객 조직 비난",
+    r:"(표정이 굳는다) 관리를 안 하는 건 아닙니다.", f:"고객의 운영을 평가하듯 말했어요. 문제는 사람이 아니라 구조로 다루세요."},
+   {t:"그럼 고객 360 뷰부터 보여드리겠습니다. 정비 이력과 재구매까지 다 연결됩니다.", s:5,
+    r:"그건 나중 얘기 같은데요. 지금은 견적 후 연락이 문제라서요.", f:"고객이 꼽은 문제(견적 후 연락)와 다른 화면으로 갔어요. 고객 답에 따라 보여줄 것을 바꾸세요."}
+  ]},
+ {title:"대표에게 번역하기", sp:"CEO", crit:["value","discovery"],
+  say:"COO 얘기는 알겠는데, 그래서 그게 회사 매출에 무슨 도움이 돼요?",
+  ctx:"가시성은 COO의 언어입니다. 대표에게는 매출과 회사에 무엇이 남는지로 다시 말해야 합니다.",
+  ideal:"이미 비용 들여 데려온 문의 고객이 새지 않음, 담당자가 바뀌어도 고객과 진행 중 계약이 회사에 남음, 다음 달 계약을 숫자로 봄, 대표에게 현재 수치 질문",
+  pitfalls:"효율·가시성 같은 COO 언어 반복, 근거 없는 매출 상승률 제시, 다음 미팅으로 회피",
+  opts:[
+   {t:"세 가지입니다. 콘텐츠와 광고로 이미 비용을 들여 데려온 문의 고객이 연락 누락으로 새지 않고, 컨설턴트가 바뀌어도 고객과 진행 중인 계약이 회사에 남고, 다음 달 계약 대수를 숫자로 보실 수 있습니다. 혹시 지금 유튜브로 들어온 문의 중 계약까지 간 비율은 보고 계신가요?", s:10,
+    r:"그 비율이요? 감으로는 아는데 숫자로는 못 봤네요.", f:"가시성을 매출 언어로 번역하고, 대표의 현재 상태를 질문으로 확인했어요."},
+   {t:"업무 효율이 좋아지고 가시성이 확보됩니다. 영업팀이 훨씬 편해집니다.", s:5,
+    r:"편해지는 건 좋은데, 돈은요?", f:"COO의 언어에 머물렀어요. 대표에게는 매출, 리스크, 투자 판단으로 말하세요."},
+   {t:"도입 고객의 평균 매출이 30% 이상 오릅니다.", s:2, flag:"근거 없는 수치",
+    r:"30%요? 어디 자료예요?", f:"출처 없는 수치를 말했어요. 확인된 사례와 출처 표현 그대로만 쓰세요."},
+   {t:"구체적인 ROI는 다음 미팅에서 계산해서 가져오겠습니다.", s:6,
+    r:"그래요. 그래도 대략적인 감은 있어야 할 것 같은데요.", f:"정직하지만 지금 할 수 있는 말(어디서 돈이 남는지)을 미뤘어요."}
+  ]},
+ {title:"사례 반박", sp:"COO", crit:["honesty","value"],
+  say:"Harwoods는 영국 고급 브랜드 딜러잖아요. 우리는 중고차 중심인데 그대로 적용돼요?",
+  ctx:"사례를 들은 COO가 차이를 짚습니다. 차이는 인정하고 공통점과 검증 방법으로 답하세요.",
+  ideal:"시장·브랜드 차이 인정, 공통점(흩어진 문의·고객 정보 연결, 거점별 순차 적용), 판매 상담 한 곳에서 먼저 검증해 확인하자는 제안, 가장 다를 것 같은 부분 질문",
+  pitfalls:"확인 안 된 국내 중고차 사례나 수치를 지어냄, 제품 설명으로 사례를 대신함, 다음 미팅으로 미룸",
+  opts:[
+   {t:"맞습니다, 시장과 브랜드는 다릅니다. 다만 공통점은 여러 거점에 흩어진 문의와 고객 정보를 하나로 연결했고, 한 번에 바꾸지 않고 거점별로 순차 적용했다는 점입니다. DS AUTO도 판매 상담 한 곳에서 먼저 검증해 보면 그대로 맞는지 확인할 수 있습니다. 중고차 쪽에서 가장 다를 것 같다고 보시는 부분이 어디인가요?", s:10,
+    r:"매입이요. 매입 쪽은 흐름이 완전히 달라요.", f:"차이를 인정하고 공통점과 검증 방법으로 답한 뒤, 고객이 걱정하는 지점을 물었어요."},
+   {t:"네, 국내 중고차 딜러들도 똑같이 해서 계약률이 40% 올랐습니다.", s:0, flag:"사례·수치 날조",
+    r:"어느 딜러요? 이름을 알려주시면 제가 직접 물어볼게요.", f:"확인되지 않은 사례와 수치를 말했어요. 면접에서 가장 치명적인 실수입니다."},
+   {t:"저희는 자동차 전용 솔루션인 Agentforce Automotive가 있어서 중고차도 다 커버됩니다.", s:5,
+    r:"제품이 있다는 건 알겠는데, 중고차에서 써본 얘기를 듣고 싶어요.", f:"제품 설명은 고객 성공 사례를 대신하지 못하고, '다 커버된다'는 과장으로 들려요."},
+   {t:"중고차 사례는 다음 미팅 때 정리해서 가져오겠습니다.", s:4,
+    r:"메일로 미리 요청드렸던 건데요.", f:"이미 요청받은 항목을 미뤘어요. 지금 가진 사례의 공통점으로 답할 수 있었어요."}
+  ]},
+ {title:"돌발 기능 질문", sp:"COO", crit:["honesty","language"],
+  say:"대시보드는 실시간이에요? 결국 누가 엑셀로 정리해야 하는 거 아니에요?",
+  ctx:"영업이 아닌 기능 질문입니다. 짧고 정확하게, 할 수 있는 것과 설계로 정하는 것을 나눠 답하세요.",
+  ideal:"별도 엑셀 취합 없이 화면에서 확인, 새로고침·외부 데이터 반영 주기는 설계 시 결정, 입력이 전제라는 점과 입력을 쉽게 하는 방법으로 연결, 30초 이내",
+  pitfalls:"'100% 실시간, 아무것도 안 해도 된다' 같은 과장, 긴 기술 설명, 핵심 답 없이 미루기만 함",
+  opts:[
+   {t:"별도 엑셀 취합 없이 화면에서 바로 확인하시는 구조입니다. 다만 화면 새로고침이나 외부 시스템 데이터가 반영되는 주기는 설계할 때 정합니다. 전제는 현장에서 입력이 되는 거라, 그걸 어떻게 쉽게 할지도 같이 보시면 좋겠습니다.", s:10,
+    r:"입력이 제일 걱정이긴 해요. 그건 나중에 따로 얘기해 주세요.", f:"가능한 것과 설계로 정하는 것을 나눠 짧게 답하고, 진짜 우려(입력)로 연결했어요."},
+   {t:"네, 100% 실시간입니다. 아무것도 안 하셔도 자동으로 다 됩니다.", s:3, flag:"기능 과장",
+    r:"아무것도 안 해도요? 그럼 데이터는 누가 넣어요?", f:"기능을 과장했어요. 기본으로 자동 실행되는 것과 설정해야 하는 것을 구분하세요."},
+   {t:"대시보드는 리포트를 기반으로 컴포넌트가 구성되고, 동적 대시보드는 실행 사용자 기준으로 데이터가 표시되며, 새로고침 정책은…", s:5,
+    r:"(COO가 대표를 본다) 그래서 엑셀은 안 해도 되는 거죠?", f:"정확할 수는 있지만 장황하고 고객 언어가 아니에요. 결론부터 30초 안에."},
+   {t:"정확한 갱신 방식은 확인해서 오늘 중으로 정리해 드리겠습니다.", s:7,
+    r:"네, 부탁드려요.", f:"정직한 태도는 좋아요. 다만 '엑셀 취합이 필요 없다'는 핵심은 지금 말할 수 있었어요."}
+  ]},
+ {title:"가격 압박", sp:"CEO", crit:["value","honesty"],
+  say:"HubSpot이나 국내 CRM은 훨씬 싸던데, 세일즈포스는 얼마예요? 연말 전에 하면 깎아줘요?",
+  ctx:"첫 미팅의 가격 질문입니다. 할인으로 딜을 만들지 않고, 총비용과 가치 기준으로 돌리세요.",
+  ideal:"사용자당 월 구독, 공식 리스트가 예시(Pro Suite 사용자당 월 100달러)와 함께 기본 라이선스 외 연동·구축 비용은 별도임을 밝힘, 성공 기준을 먼저 맞추고 3년 총비용 비교 제안",
+  pitfalls:"첫 미팅 할인 약속, 경쟁사 비방, 근거 없이 회피만",
+  opts:[
+   {t:"사용자당 월 구독이고, 예를 들어 Pro Suite는 공식 리스트가 기준 사용자당 월 100달러입니다. 다만 이건 기본 라이선스이고 연동·구축 비용은 범위에 따라 별도입니다. 가격 비교 전에 무엇이 바뀌면 이 투자가 성공인지부터 맞추면, 3년 총비용으로 비교해 드리겠습니다.", s:10,
+    r:"총비용으로 비교한다는 건 좋네요.", f:"공식 가격의 범위를 정확히 밝히고 총비용과 성공 기준으로 대화를 돌렸어요."},
+   {t:"연말까지 결정하시면 30% 이상 할인해 드릴 수 있습니다.", s:1, flag:"첫 미팅 할인 약속",
+    r:"벌써요? 그럼 원래 가격이 비싼 거네요.", f:"범위도 모르는 첫 미팅에서 할인을 약속했어요. 가치보다 가격으로 경쟁하게 됩니다."},
+   {t:"HubSpot은 기능이 부족하고 확장성이 떨어집니다. 결국 다시 바꾸셔야 할 겁니다.", s:3, flag:"경쟁사 비방",
+    r:"저희 마케팅팀은 HubSpot 써봤는데 괜찮았다던데요.", f:"경쟁사를 깎아내렸어요. 비교 기준(확장성, 3년 총비용)을 제시하세요."},
+   {t:"가격은 범위가 정해져야 말씀드릴 수 있습니다.", s:6,
+    r:"대략도 몰라요?", f:"틀린 말은 아니지만 공식 리스트가 정도는 말할 수 있어요. 회피로 들립니다."}
+  ]},
+ {title:"클로징", sp:"CEO", crit:["lead","discovery"],
+  say:"좋은 얘기 잘 들었어요. 내부적으로 검토해 보고 연락드릴게요.",
+  ctx:"미팅의 마지막입니다. 날짜가 있는 다음 단계와 의사결정 절차를 확인해야 합니다.",
+  ideal:"받아들이되 구체화: 다음 주 45분 실무 미팅(최근 견적 2~3건의 후속 흐름 확인, 데모 범위·성공 기준 합의), 요일 제안, 의사결정 절차와 참여자 질문",
+  pitfalls:"'연락 주세요'로 끝냄, 목적·날짜 없는 재연락, 근거 없는 무료·할인 조건 제시",
+  opts:[
+   {t:"감사합니다. 검토에 도움이 되도록, 다음 주에 45분만 영업 운영 담당자분과 최근 견적 두세 건의 후속 흐름을 같이 확인하고 데모 범위와 성공 기준을 정하면 어떨까요? 화요일이나 목요일 중 편하신 시간이 있으실까요? 그리고 도입 검토는 어떤 절차로 진행되고, 두 분 외에 함께 판단하실 분이 계신가요?", s:10,
+    r:"목요일 오후 괜찮아요. 결정은 저랑 COO, 그리고 재무 쪽이 같이 봅니다.", f:"날짜 있는 다음 단계를 제안하고 의사결정 참여자까지 확인했어요. AE다운 마무리입니다."},
+   {t:"네, 편하실 때 연락 주시면 됩니다. 자료는 메일로 보내드리겠습니다.", s:3,
+    r:"네, 그럴게요.", f:"다음 단계 없이 끝났어요. 이런 미팅은 대부분 다시 연락이 오지 않습니다."},
+   {t:"네, 그럼 제가 다음 주에 다시 연락드리겠습니다.", s:6,
+    r:"네, 그래요.", f:"재연락은 정했지만 목적, 날짜, 의사결정 절차가 없어요."},
+   {t:"이번 달 안에 결정해 주시면 Pilot 2~3개월을 무료로 해드리겠습니다.", s:2, flag:"확인 안 된 조건 약속",
+    r:"그게 정말 가능한 거예요? 확인하신 거죠?", f:"승인받지 않은 조건을 약속했어요. 범위도 모르는 상태에서 기대만 만듭니다."}
+  ]},
+ {title:"롤플레이 종료 후 자기 평가", sp:"INT", crit:["trust","honesty"],
+  say:"네, 롤플레이는 여기까지 하겠습니다. 오늘 미팅을 스스로 평가해 보시겠어요?",
+  ctx:"면접관이 역할을 벗었습니다. 잘한 점 하나와 아쉬운 점 하나, 그리고 보완 행동을 짧게.",
+  ideal:"잘한 점 1개(고객 우선순위로 구성, 날짜 있는 다음 단계), 아쉬운 점 1개(DS AUTO 실제 숫자 확보 등)와 구체적 보완 행동",
+  pitfalls:"변명, 성찰 없는 '잘한 것 같다', 자기 비하와 사과",
+  opts:[
+   {t:"잘한 점은 COO님 메일의 우선순위로 미팅을 구성하고 다음 단계를 날짜로 제안한 것입니다. 아쉬운 점은 DS AUTO의 실제 숫자를 더 확보하지 못한 것이라, 실무 미팅에서 견적 건 데이터로 보완하겠습니다.", s:10,
+    r:"네, 스스로 잘 보고 계시네요.", f:"잘한 점과 아쉬운 점을 하나씩 말하고 보완 행동까지 제시했어요."},
+   {t:"준비를 많이 했는데 시간이 부족해서 다 보여드리지 못한 게 아쉽습니다. 원래는 장표가 더 있었는데…", s:3,
+    r:"시간은 처음에 정하셨잖아요.", f:"변명으로 들려요. 2차 피드백의 약점이 다시 드러납니다."},
+   {t:"전반적으로 잘한 것 같습니다.", s:4,
+    r:"구체적으로 어떤 부분이요?", f:"성찰이 없어요. 피드백을 받아들이는 사람인지 보는 질문입니다."},
+   {t:"제가 아직 많이 부족했던 것 같습니다. 죄송합니다.", s:4,
+    r:"사과하실 일은 아니에요. 뭘 바꾸시겠어요?", f:"자기 비하는 신뢰를 주지 못해요. 아쉬운 점은 보완 행동과 함께 말하세요."}
+  ]}
+];
+
+// Slide-explanation scenes: the candidate presents a deck slide to a listener
+const P = [
+ {kind:"slide", title:"장표 설명 · 고객 경험", sp:"ME", listener:"CEO", crit:["pitch","trust","honesty"],
+  slide:{no:"슬라이드 3–4", title:"저는 실제 카통령 상담 고객이었습니다 / 하지만, 최종 구매는 다른 곳에서 이뤄졌습니다",
+   pts:["인증중고차, 신차, 리스·렌트까지 한 번의 문의로 비교할 수 있었던 강점","마케팅 → 중고차 상담 → 신차 비교 → 정비·보증 → 매입, 단계마다 다시 설명","문제 인식: 담당자는 전문적이었지만 세부 조건은 매번 다시 설명"], tag:"고객 경험으로 대화를 여는 장표"},
+  ctx:"내 경험은 대화를 여는 계기입니다. 강점을 먼저 인정하고, 원인은 단정하지 말고 질문으로 넘기세요. 1인 딜러 이야기는 여기서 한 번만.",
+  ideal:"강점 인정, 1인 딜러가 한발 앞서 챙긴 사실, 담당자는 전문적이었다는 존중, 다시 설명한 경험은 사실로만, 내부 원인은 모른다는 구분, 현재 인계 방식 질문, 1분 이내",
+  pitfalls:"장표의 다섯 단계를 하나씩 낭독, 정보가 전혀 공유되지 않는다는 단정, 강점 언급 없이 문제만 말함, 직원 비난",
+  opts:[
+   {t:"준비하면서 한 가지 말씀드리면, 저는 실제로 카통령 상담 고객이었습니다. 인증중고차, 신차, 리스·렌트를 한 번의 문의로 비교할 수 있었던 건 분명한 강점이었습니다. 그런데 최종 구매는 다른 1인 딜러분께 했습니다. 다음 단계를 저보다 한발 앞서 챙겨주셨거든요. DS AUTO 담당자분들은 전문적이셨는데, 일부 내용은 다시 설명한 경험이 있었습니다. 현재는 이전 상담 내용을 어떻게 이어받고 계신가요?", s:10,
+    r:"강점이라고 해주시니 고맙네요. 그래도 딴 데서 사셨다니 좀 아프네요.", f:"강점을 먼저 인정하고, 경험은 사실로만 말한 뒤 질문으로 넘겼어요. 1분 안에 끝나는 좋은 오프닝입니다."},
+   {t:"01 김마케팅님이 문의를 받고, 02 김설팅님이 중고차 상담을, 03 김신차님이 신차 비교를, 04 김정비님이 정비·보증을, 05 김매입님이 기존 차 매입을 맡으셨는데, 각 단계마다 고객 정보 전달이 누락되어 매번 다시 설명해야 했습니다.", s:4,
+    r:"(대표가 COO를 본다) 담당자를 다 기억하시네요.", f:"장표를 그대로 읽었고, 담당자 한 명 한 명을 짚어 비판처럼 들려요. 핵심 한 문장과 질문이면 충분합니다."},
+   {t:"보시다시피 DS AUTO는 담당자 사이에 정보가 전혀 공유되지 않습니다. 이게 고객을 잃는 핵심 원인입니다.", s:2, flag:"한 번의 경험으로 고객 조직 단정",
+    r:"전혀요? 한 번 상담받아 보시고요?", f:"고객으로서 확인할 수 없는 원인을 단정했어요. 경험은 사실로만, 원인은 질문으로."},
+   {t:"저는 실제 카통령 상담 고객이었고, 최종 구매는 다른 곳에서 했습니다. 다음 장으로 넘어가겠습니다.", s:6,
+    r:"…네.", f:"짧지만 강점 인정과 질문이 없어서 공격적으로 들릴 수 있어요. 왜 이 이야기를 하는지 연결하세요."}
+  ]},
+ {kind:"slide", title:"장표 설명 · 내부로 번지는 단절", sp:"ME", listener:"COO", crit:["pitch","language","honesty"],
+  slide:{no:"슬라이드 4-1 (신규)", title:"끊긴 맥락은 고객 경험만의 문제가 아닙니다",
+   pts:["고객: 같은 설명을 반복 → 신뢰가 떨어지고, 먼저 챙겨주는 곳으로 이동","영업 담당자: 이전 상담을 찾고 인계받는 데 시간 소요 · 다음 연락 시점을 각자 기억에 의존","매니저·임원: 멈춘 안건이 보이지 않음 · 주간 현황을 엑셀로 취합 · 다음 달 계약을 감으로 예측","결국 영업기회는 개인의 메신저·통화 메모·카톡·엑셀에만 남고, 조직의 자산으로 쌓이지 않음"], tag:"고객 경험(4번)에서 COO의 질문(5번)으로 넘어가는 다리 장표 · 일반적으로 나타나는 패턴"},
+  ctx:"고객 이야기에서 회사 내부 이야기로 넘어가는 다리입니다. DS AUTO가 그렇다고 단정하지 말고 '흔히 생기는 패턴'으로 말한 뒤, 다음 장의 질문으로 연결하세요.",
+  ideal:"고객 불편이 내부에서는 다른 모습으로 나타난다는 연결, 영업 담당자(찾고 인계받는 시간, 기억 의존)와 매니저·임원(멈춘 안건 안 보임, 엑셀 취합, 감으로 예측)을 한 줄씩, 결국 개인 메신저·통화 메모·카톡·엑셀에만 남아 조직 자산이 안 된다, 일반적 패턴이라고 밝히고 DS AUTO는 어떤지 묻기로 다음 장 연결, 1분 이내",
+  pitfalls:"DS AUTO가 실제로 그렇다고 단정, 항목을 하나하나 낭독, 데이터 사일로·파이프라인 같은 용어, 바로 제품 소개로 점프",
+  opts:[
+   {t:"고객 입장에서는 다시 설명하는 불편으로 보이지만, 회사 안에서는 같은 일이 다른 모습으로 나타나기 쉽습니다. 영업 담당자는 이전 상담을 찾고 인계받는 데 시간이 들고, 다음 연락 시점을 각자 기억에 의존하게 됩니다. 매니저와 임원께는 어떤 안건이 멈춰 있는지 보이지 않고, 현황을 엑셀로 모으고, 다음 달 계약을 감으로 보시게 됩니다. 결국 영업기회가 개인의 메신저, 통화 메모, 카톡, 엑셀에만 남게 됩니다. 일반적으로 많이 보이는 모습인데, DS AUTO는 어떤지가 오늘 가장 여쭤보고 싶은 부분입니다.", s:10,
+    r:"엑셀로 모으는 건 저희도 그래요. 계속 들어볼게요.", f:"고객 이야기를 내부 문제로 자연스럽게 연결하고, 일반적인 패턴이라고 밝힌 뒤 다음 장의 질문으로 넘겼어요."},
+   {t:"DS AUTO도 지금 컨설턴트분들이 각자 카톡과 엑셀로 고객을 관리하고 계시고, 팀장님들은 매주 현황 취합에 시간을 많이 쓰고 계실 겁니다. 그래서 대표님도 다음 달 계약을 정확히 모르고 계신 상황입니다.", s:2, flag:"확인 없이 고객 내부 상황 단정",
+    r:"저희 내부 상황을 어떻게 그렇게 확신하세요?", f:"아직 듣지 않은 고객 내부 상황을 단정했어요. '흔히 생기는 패턴'으로 말하고 확인은 질문으로 하세요."},
+   {t:"첫째, 고객은 같은 설명을 반복합니다. 둘째, 영업 담당자는 이전 상담 기록을 찾는 데 시간이 걸리고, 인수인계 때 누락이 생기며, 다음 연락 시점을 기억에 의존합니다. 셋째, 매니저와 임원은 데이터 사일로 때문에 파이프라인 가시성이 없고 포캐스트 정확도가 떨어집니다. 넷째…", s:4,
+    r:"(COO가 대표를 본다) 그래서 결론이 뭐예요?", f:"장표를 항목별로 낭독했고, '사일로', '파이프라인', '포캐스트' 같은 용어를 썼어요. 한 줄씩 고객 언어로, 1분 안에."},
+   {t:"이렇게 고객뿐 아니라 내부에서도 문제가 생깁니다. 그래서 Salesforce 같은 CRM이 필요합니다.", s:5,
+    r:"CRM이 필요하다는 건 알겠는데, 저희 문제가 뭔지는 아직 얘기 안 했잖아요.", f:"내부 문제를 짚자마자 제품으로 점프했어요. 다음 장의 질문(조직 자산으로 남는가)으로 연결해 고객 이야기를 먼저 들으세요."}
+  ]},
+ {kind:"slide", title:"장표 설명 · 핵심 질문 던지기", sp:"ME", listener:"COO", crit:["pitch","discovery","language"],
+  slide:{no:"슬라이드 5", title:"배분된 영업기회는 조직의 자산으로 남고 있습니까?",
+   pts:["안건은 배분되지만, 팔로업 방식과 진행 가시성은 여전히 분절될 수 있다","엑셀, 메신저, 통화 메모, 캘린더, 메일, 가벼운 CRM에 흩어진 기록"], tag:"COO의 메일 문장을 제목으로 옮긴 질문형 장표"},
+  ctx:"이 장표는 답이 아니라 질문입니다. COO의 표현을 인용하고, 처방 전에 현재 상태를 물어보세요.",
+  ideal:"COO 메일 표현 인용, '흩어지기 쉽다'는 일반 경향으로만 말함, DS AUTO 실제 상황은 질문으로 확인, 고객 언어",
+  pitfalls:"화면의 도구들을 근거로 DS AUTO가 파편화됐다고 단정, CRM 용어 일반론, 질문 없이 해결책으로 직행",
+  opts:[
+   {t:"그래서 COO님께서 메일로 주신 질문을 그대로 제목으로 옮겼습니다. 배분된 영업기회가 조직의 자산으로 남고 있는가. 제가 답을 드리기 전에, DS AUTO는 지금 어떻게 운영되고 있는지 먼저 여쭤보고 싶습니다.", s:10,
+    r:"네, 그게 제 질문이었어요.", f:"고객의 말을 인용하고, 일반적인 경향과 DS AUTO의 실제를 구분해 질문으로 넘겼어요."},
+   {t:"보시는 것처럼 엑셀, 팀즈, 지메일, 캘린더, 통화 메모가 다 따로 놀고 있습니다. DS AUTO는 지금 데이터가 완전히 파편화된 상태입니다.", s:3, flag:"확인 없이 고객 현황 단정",
+    r:"저희가 팀즈를 쓴다고 말씀드린 적은 없는데요.", f:"예시 그림을 DS AUTO의 실제처럼 말했어요. 확인하지 않은 현황은 단정하지 마세요."},
+   {t:"CRM이 없으면 리드와 기회, 파이프라인이 관리되지 않아 데이터 사일로가 생깁니다. 많은 기업이 겪는 문제입니다.", s:5,
+    r:"사일로요? 무슨 말씀인지는 알겠는데요.", f:"고객 언어가 아니고 일반론이에요. COO가 쓴 말('자산화', '팔로업')로 말하세요."},
+   {t:"COO님 질문을 그대로 제목으로 옮겼습니다. 다음 장에서 해결 방법을 보여드리겠습니다.", s:7,
+    r:"네, 보시죠.", f:"고객의 말을 인용한 건 좋아요. 다만 확인 질문 없이 처방으로 넘어가면 답을 정해온 발표처럼 보여요."}
+  ]},
+ {kind:"slide", title:"장표 설명 · 해결 방향", sp:"ME", listener:"COO", crit:["pitch","language","honesty"],
+  slide:{no:"슬라이드 8", title:"개인의 팔로업을 조직의 가시성으로 전환합니다",
+   pts:["01 영업 안건 자산화: 고객·견적·상담 이력 표준화","02 후속 활동 표준화: 다음 행동과 일정 관리","03 경영 가시성 확보: 정체 안건·전환율·파이프라인 (예시 화면 · 가상 수치)"], tag:"진단 확인 직후, 세 단계로 방향 제시"},
+  ctx:"진단을 확인받은 직후입니다. 세 단계를 고객 언어로 짧게, 예시 수치는 예시라고 밝히세요.",
+  ideal:"'말씀하신 문제에 대한 방향'으로 시작, 세 단계를 업무 언어로(회사의 기록, 다음 할 일과 날짜, 놓치면 알림 설정 가능, 엑셀 없이 확인), 예시 수치 명시, 2분 이내",
+  pitfalls:"오브젝트·플로 같은 기능 용어 나열, 예시 수치를 실제 성과처럼 약속, 예시라는 말 없이 숫자 낭독",
+  opts:[
+   {t:"말씀하신 문제에 저희가 제안드리는 방향은 세 단계입니다. 첫째, 고객 정보와 견적, 상담 이력이 담당자가 아니라 회사의 기록으로 남습니다. 둘째, 다음에 할 일과 날짜가 남고, 놓치면 알림이 가도록 설정할 수 있습니다. 셋째, 멈춰 있는 상담 건과 계약 예정 금액을 엑셀 없이 보실 수 있습니다. 화면의 숫자는 이해를 돕기 위한 예시입니다.", s:10,
+    r:"세 번째가 제일 필요하네요.", f:"세 단계를 고객 언어로 짧게 설명하고, 할 수 있는 것과 설정하는 것을 구분했고, 예시 수치라고 밝혔어요."},
+   {t:"Sales Cloud의 리드, 어카운트, 컨택트, 오퍼튜니티 오브젝트로 데이터를 표준화하고, Flow로 태스크를 자동 생성하며, 다이내믹 대시보드로 파이프라인과 컨버전 레이트를 실시간 모니터링합니다.", s:3,
+    r:"(대표가 고개를 갸웃한다) 쉽게 말하면요?", f:"기능 용어를 나열했어요. 첫 미팅 고객은 이 용어들을 모릅니다."},
+   {t:"이걸 도입하시면 전환율이 28%까지 오르고 파이프라인이 8.4억이 됩니다.", s:2, flag:"예시 수치를 실제 성과처럼 약속",
+    r:"28%요? 저희 숫자도 모르시잖아요.", f:"예시 화면의 가상 수치를 성과처럼 약속했어요. 숫자는 반드시 예시라고 밝히세요."},
+   {t:"자산화, 표준화, 가시성 세 단계입니다. 정체 안건 12건, 전환율 28%, 파이프라인 8.4억처럼 한눈에 보입니다.", s:5,
+    r:"그 숫자는 어디서 나온 거예요?", f:"구조는 맞지만 예시라고 밝히지 않아 숫자 질문을 불렀어요. 장표 단어보다 업무 언어로 풀어 주세요."}
+  ]},
+ {kind:"slide", title:"장표 설명 · 화면 예시", sp:"ME", listener:"COO", crit:["pitch","discovery","honesty"],
+  slide:{no:"슬라이드 9", title:"한 화면에서, 고객 맥락과 다음 행동이 함께 보입니다",
+   pts:["왼쪽: 고객 화면 · 관심 차량(인증중고 그랜저), 상담 이력, 다음 활동(5월 27일 고객 통화)","오른쪽: COO·임원 대시보드 · 진행 중인 기회, 7일 이상 지연된 후속 작업, 이번 주 예정 연락","하단: 담당자는 달라도, 고객의 이야기는 하나여야 합니다 (예시 화면 · 고객과 수치는 가상)"], tag:"고객이 꼽은 문제에 맞춰 초점을 바꾸는 장표"},
+  ctx:"앞에서 COO는 '견적 후 누가 언제 연락했는지 모르고, 기준은 사흘'이라고 했습니다. 화면을 그 문제에 맞춰 설명하세요.",
+  ideal:"고객이 말한 문제(견적 후 연락)에 맞춰 설명, 예시 화면이라고 밝힘, 왼쪽은 담당자가 바뀌어도 이어받는 화면, 오른쪽은 기한 지난 후속 연락, '7일'은 예시이고 고객 기준(사흘)으로 맞춘다, 매주 보고 싶은 숫자 질문",
+  pitfalls:"위젯과 숫자를 전부 낭독, 예시 화면을 실제 구축 화면처럼 말함, 장표 문구만 반복하고 고객 문제와 연결 안 함",
+  opts:[
+   {t:"앞에서 말씀하신 견적 후 연락 문제에 맞춰 예시 화면으로 보여드리겠습니다. 왼쪽은 고객 한 분의 화면입니다. 관심 차량과 상담 이력, 다음에 할 일이 한 화면에 있어서 담당자가 바뀌어도 이어받을 수 있습니다. 오른쪽은 관리자 화면으로, 기한이 지난 후속 연락이 바로 보입니다. 여기 7일은 예시이고, 실제 기준은 말씀하신 사흘로 맞추면 됩니다. 매주 꼭 보고 싶으신 숫자가 있으실까요?", s:10,
+    r:"사흘 넘긴 건만 따로 보이면 좋겠어요. 팀장별로요.", f:"고객이 말한 문제와 기준(사흘)에 화면을 맞췄고, 예시라고 밝혔고, 성공 기준이 될 질문으로 끝냈어요."},
+   {t:"상단에는 총 파이프라인 128억, 진행 중인 기회 86건, 이달 계약 예상 24건이 있고, 그 아래 월별 진행 기회 차트, 7일 이상 지연 작업 목록, 이번 주 예정 연락 목록이 있습니다.", s:4,
+    r:"128억이요? 아까 장표엔 8.4억이던데요.", f:"화면을 낭독했고, 예시 수치끼리 맞지 않는 점까지 드러났어요. 고객 문제에 해당하는 부분만 짚으세요."},
+   {t:"이게 실제로 DS AUTO용으로 구축한 화면입니다. 계약하시면 바로 쓰실 수 있습니다.", s:1, flag:"예시 화면을 실제 시스템처럼 말함",
+    r:"벌써 만드셨다고요? 저희 데이터는 드린 적이 없는데요.", f:"예시 화면을 실제 구축 화면처럼 말했어요. 신뢰를 바로 잃습니다."},
+   {t:"이렇게 한 화면에서 고객 맥락과 다음 행동이 함께 보입니다. 담당자는 달라도 고객의 이야기는 하나여야 합니다.", s:6,
+    r:"네, 좋은 말이네요.", f:"장표 문구를 반복했을 뿐 고객이 말한 문제(견적 후 연락)와 연결하지 않았어요."}
+  ]},
+ {kind:"slide", title:"보조 장표 · 확장과 재구매", sp:"ME", listener:"CEO", crit:["pitch","value","discovery"],
+  lead:{sp:"CEO", say:"아까 말했지만 저는 재구매 쪽도 궁금해요. 그쪽은 어떻게 돼요?"},
+  slide:{no:"슬라이드 6–7 (보조)", title:"사업이 확장될수록 고객 경험은 더 쉽게 끊깁니다 / 차량 판매가 끝나는 순간, 다음 관계가 시작됩니다",
+   pts:["인증중고차 · 신차·리스·렌트 · 정비·홈서비스 · 매입·교체","유입 → 상담 → 비교견적 → 계약 → 출고 → 정비 → 교체·재구매","고객의 자동차 생애주기를 하나의 맥락으로 연결"], tag:"대표가 관심을 보일 때만 펼치는 보조 장표"},
+  ctx:"대표가 직접 재구매를 물었습니다. 보조 장표를 꺼낼 때입니다. 짧게, 매출 언어로, 과장 없이.",
+  ideal:"보조 장표라고 짧게 꺼냄, 이미 데려온 고객을 오래 남기는 게 가장 싼 성장, 할부·보험 → 워런티·정비 → 리스 만기 갈아타기 → 매입·재구매로 이어지는 매출, 규칙 기반(리스 만기 D-90 등)부터 시작하고 AI는 데이터가 쌓인 뒤, 재구매 비율 질문",
+  pitfalls:"AI가 다 예측한다는 과장, 일곱 단계를 하나씩 낭독, 대표 질문을 미루기",
+  opts:[
+   {t:"그럼 보조 장표로 짧게 말씀드리겠습니다. 이미 비용을 들여 데려온 고객을 오래 남기는 게 가장 싼 성장이라고 봅니다. 계약 때 할부·보험, 출고 후 워런티와 정비, 렌트·리스 만기 때 갈아타기, 다음 차를 살 때 매입과 재구매까지 이어집니다. 처음부터 AI가 필요한 건 아니고, 리스 만기 D-90 같은 시점에 규칙으로 먼저 제안하는 것부터 시작합니다. 지금 재구매로 돌아오는 고객 비율은 어느 정도로 보고 계신가요?", s:10,
+    r:"글쎄요, 감으로는 30% 정도? 정확히는 몰라요.", f:"대표 질문에 매출 언어로 짧게 답하고, 과장 없이 단계를 나눈 뒤 숫자를 물었어요."},
+   {t:"AI가 고객별 교체 시점을 정확하게 예측해서 재구매율을 크게 올려드립니다. Agentforce가 알아서 다 제안합니다.", s:3, flag:"AI 기능 과장",
+    r:"알아서 다요? 데이터도 없는데요?", f:"AI를 과장했어요. 규칙 기반으로 시작하고 데이터가 쌓이면 고도화한다고 말하세요."},
+   {t:"유입, 상담, 비교견적, 계약, 출고, 정비, 교체·재구매 각 단계마다 지금은 정보가 끊기고 있고, 연결되면 각 단계에서 이렇게 바뀝니다. 먼저 유입 단계에서는…", s:5,
+    r:"(시계를 본다) 핵심만요.", f:"장표를 단계별로 낭독하기 시작했어요. 대표가 원한 건 '어디서 돈이 나오나'입니다."},
+   {t:"그 부분은 1단계가 끝난 다음에 말씀드리겠습니다.", s:5,
+    r:"제가 궁금하다고 했는데요.", f:"대표의 관심을 미뤘어요. 보조 장표는 이럴 때 짧게 꺼내라고 있는 거예요."}
+  ]},
+ {kind:"slide", title:"장표 설명 · 검증 사례", sp:"ME", listener:"COO", crit:["pitch","honesty","value"],
+  slide:{no:"슬라이드 10", title:"검증된 방식으로, 작게 시작해 확장합니다",
+   pts:["사례: 자동차 딜러 1곳 + 국내 1곳 (Harwoods · GC녹십자웰빙, 한샘은 예비)","기대 가치: 기한 내 후속 조치율, 견적→계약 전환율, 인계 소요 시간","Next Step: 최근 견적 2~3건 확인 → 판매 상담 검증 → 정비·매입으로 확장"], tag:"COO가 요청한 동종 업계 사례를 보여주는 장표"},
+  ctx:"COO가 메일로 동종 업계 사례를 요청했습니다. 공식 사례를 출처 표현 그대로, 짧게.",
+  ideal:"사례 두 개만: Harwoods(딜러십 18곳에 흩어진 고객·문의 연결, 거점별 순차 적용, 문의 15분 내 응답 약속), GC녹십자웰빙(거래처 정보를 회사의 공식 데이터 자산으로, 인수인계·행정 업무 시간 50% 단축), 수치는 출처 표현 그대로",
+  pitfalls:"한샘 90%를 '직원 90%가 사용'으로 말함(실제는 RD가 담당 고객의 약 90%를 팔로업), 자동차 사례를 다음 미팅으로 미룸, 사례 없이 제품 설명",
+  opts:[
+   {t:"비슷한 문제를 푼 사례 두 가지만 말씀드리겠습니다. 자동차 딜러로는 영국 Harwoods 그룹이 딜러십 18곳에 흩어진 고객과 문의를 하나로 연결했고, 거점별로 순차 적용해서 문의에 15분 안에 응답하는 걸 약속할 수 있게 됐습니다. 국내에서는 GC녹십자웰빙이 거래처 정보를 회사의 공식 데이터 자산으로 바꿔 인수인계·행정 업무 시간을 50% 줄였습니다.", s:10,
+    r:"Harwoods라… 처음 들어보네요.", f:"요청받은 자동차 사례를 먼저, 국내 사례는 하나만, 수치는 출처 표현 그대로 말했어요."},
+   {t:"한샘은 직원 90%가 Salesforce를 쓰고 영업 비용을 10% 줄였고, GC녹십자웰빙은 정보 통합률 95%를 달성했습니다.", s:3, flag:"사례 수치의 의미 왜곡",
+    r:"직원 90%요? 그건 어디 자료예요?", f:"한샘 90%는 RD가 담당 고객의 약 90%를 팔로업한 비율이고, 10%는 본사 영업사원(TR)의 업무 시간이에요. 분모를 바꿔 말하면 안 됩니다."},
+   {t:"업종은 다르지만 국내에서 검증된 방식입니다. 자동차 사례는 다음 미팅에 정리해 드리겠습니다.", s:4,
+    r:"자동차 사례는 메일로 미리 부탁드렸는데요.", f:"요청받은 사례를 미뤘어요. 준비 부족으로 읽힙니다."},
+   {t:"한샘은 오픈 한 달여 만에 영업사원이 담당 고객의 약 90%를 Salesforce에서 팔로업했고, GC녹십자웰빙은 인수인계 시간을 50% 줄였습니다.", s:6,
+    r:"둘 다 자동차는 아니네요.", f:"수치는 정확하지만 COO가 요청한 자동차 사례가 빠졌어요."}
+  ]}
+];
+
+const STAGES = [Q[0],P[0],Q[1],P[1],P[2],Q[2],Q[3],P[3],P[4],Q[6],Q[4],P[5],P[6],Q[5],Q[7],Q[8],Q[9]];
+
+const $ = id => document.getElementById(id);
+let sample = null;
+let state = null;
+
+function shuffle(n){const a=[...Array(n).keys()];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function newState(){return {i:0, answers:[], order:STAGES.map(s=>shuffle(s.opts.length)), mode:"pick"}}
+function show(id){for(const s of ["intro","play","final"]) $(s).hidden = s!==id; window.scrollTo({top:0})}
+function chipClass(s){return s>=8?"good":s>=5?"mid":"bad"}
+function best(st){return st.opts.reduce((a,b)=>b.s>a.s?b:a)}
+
+function getBest(){try{return Number(localStorage.getItem("dsauto-rp-best"))||null}catch(e){return null}}
+function setBest(v){try{const b=getBest();if(b===null||v>b)localStorage.setItem("dsauto-rp-best",String(v))}catch(e){}}
+function renderBest(){const b=getBest();$("bestNote").textContent=b!==null?`내 최고 점수 ${b}점`:""}
+
+function renderStage(){
+  const st = STAGES[state.i], sp = SP[st.sp];
+  $("stageLabel").textContent = `${String(state.i+1).padStart(2,"0")} / ${STAGES.length} · ${st.title}`;
+  const steps=$("steps"); steps.textContent="";
+  STAGES.forEach((_,k)=>{const i=document.createElement("i");if(k<state.i)i.className="done";if(k===state.i)i.className="now";steps.append(i)});
+  const b=$("badge"); b.className="badge "+sp.cls; b.textContent=sp.short;
+  $("spName").textContent = sp.name;
+  const isSlide = st.kind==="slide";
+  $("spSay").textContent = isSlide ? "이 장표를 고객에게 어떻게 설명하시겠어요?" : st.say;
+  $("ctx").textContent = st.ctx;
+  $("lead").hidden = !st.lead;
+  if(st.lead){const ls=SP[st.lead.sp]; const lb=$("leadBadge"); lb.className="badge "+ls.cls; lb.textContent=ls.short; $("leadName").textContent=ls.name; $("leadSay").textContent=st.lead.say}
+  $("slide").hidden = !isSlide;
+  if(isSlide){
+    $("slideNo").textContent=st.slide.no; $("slideTitle").textContent=st.slide.title; $("slideTag").textContent=st.slide.tag;
+    const ul=$("slidePts"); ul.textContent=""; st.slide.pts.forEach(p=>{const li=document.createElement("li");li.textContent=p;ul.append(li)});
+  }
+  $("tabPick").textContent = isSlide ? "설명 고르기" : "답변 고르기";
+  $("tabWrite").textContent = isSlide ? "직접 설명하기 · AI 평가" : "직접 답하기 · AI 평가";
+  const box=$("opts"); box.textContent="";
+  state.order[state.i].forEach((oi,k)=>{
+    const o=st.opts[oi];
+    const btn=document.createElement("button"); btn.className="opt"; btn.type="button";
+    const key=document.createElement("b"); key.className="k"; key.textContent="ABCDE"[k];
+    const tx=document.createElement("span"); tx.textContent=o.t;
+    btn.append(key,tx);
+    btn.addEventListener("click",()=>pick(oi,btn));
+    box.append(btn);
+  });
+  $("freeText").value=""; $("writeErr").hidden=true; $("thinking").hidden=true; $("submitText").disabled=false; $("freeText").disabled=false;
+  $("answerBox").hidden=false; $("resultBox").hidden=true;
+  setMode(state.mode==="write" && sample ? "write" : "pick");
+}
+
+function setMode(m){
+  state.mode=m;
+  $("tabPick").setAttribute("aria-selected", m==="pick");
+  $("tabWrite").setAttribute("aria-selected", m==="write");
+  $("opts").hidden = m!=="pick";
+  $("writeBox").hidden = m!=="write";
+}
+
+function pick(oi,btn){
+  const st=STAGES[state.i], o=st.opts[oi];
+  for(const b of $("opts").children) b.disabled=true;
+  btn.classList.add("picked");
+  record({score:o.s, flag:o.flag||"", feedback:o.f, reply:o.r, text:o.t, mode:"pick", isBest:o===best(st), resolved:o.s>=8});
+}
+
+async function submitText(){
+  const st=STAGES[state.i], isSlide=st.kind==="slide", sp=SP[isSlide?st.listener:st.sp];
+  const ans=$("freeText").value.trim();
+  if(ans.length<10){$("writeErr").hidden=false;$("writeErr").textContent="답변을 한두 문장 이상 써 주세요.";return}
+  $("writeErr").hidden=true; $("thinking").hidden=false; $("submitText").disabled=true; $("freeText").disabled=true;
+  const prompt = basePrompt(st,sp) + `
+
+지원자의 ${isSlide?"장표 설명":"답변"}:
+"""${ans}"""
+` + outputSpec(st, sp, false);
+  try{
+    const r = await sample.json(prompt,{modelTier:"default"});
+    const score=Math.max(0,Math.min(10,Math.round(Number(r?.score))||0));
+    record({score, flag:(r?.flag===true)?(String(r.flagReason||"치명적 실수")):"", feedback:String(r?.feedback||""), reply:String(r?.reply||""), text:ans, mode:"write", isBest:false, resolved:(r?.resolved===true)||score>=8});
+  }catch(e){
+    $("thinking").hidden=true; $("submitText").disabled=false; $("freeText").disabled=false;
+    $("writeErr").hidden=false;
+    $("writeErr").textContent = e?.code==="not_granted" ? "AI 평가 사용이 허용되지 않았습니다. 답변 고르기로 진행해 주세요."
+      : e?.code==="rate_limited" ? "요청이 많아 잠시 막혔습니다. 조금 뒤에 다시 제출하거나 답변 고르기로 진행해 주세요."
+      : "평가를 받지 못했습니다. 다시 제출하거나 답변 고르기로 진행해 주세요.";
+    if(e?.code==="not_granted"){sample=null;$("tabWrite").hidden=true;setMode("pick")}
+  }
+}
+
+const MAX_FOLLOW = 3;
+function listenerOf(st){return SP[st.kind==="slide"?st.listener:st.sp]}
+
+function basePrompt(st,sp){
+  const isSlide=st.kind==="slide";
+  return `너는 Salesforce Korea CBU AE(중소기업 영업) 채용 롤플레이 면접의 평가관이다.
+지원자는 DS AUTO(카통령. 인증중고차·신차·렌트·정비까지 하는 토탈 카라이프 기업)의 대표와 COO를 처음 만나는 상황이다.
+케이스 전제: 아직 Salesforce 계약 없음. COO가 메일로 밝힌 우선순위는 ① 담당자별로 배분한 안건의 후속 관리 가시성·자산화 ② 고객 이력 통합 ③ 재구매 예측. COO는 동종 업계 사례를 요청했다.
+평가 원칙: 단정하지 말고 질문으로 확인한다. 고객 언어로 말한다(리드·기회·파이프라인 같은 용어 남발은 감점). 결론부터 짧게. 모르는 것은 확인 후 답한다. 확인되지 않은 수치·사례는 쓰지 않는다. 대표에게는 매출과 회사에 남는 것으로 번역한다. 날짜 있는 다음 단계와 의사결정 절차를 확인한다.
+
+지금 장면: ${st.title}
+${isSlide
+ ? `지원자가 발표 장표를 고객(${sp.name})에게 설명하는 장면이다.${st.lead?` 직전에 ${SP[st.lead.sp].name}가 "${st.lead.say}"라고 말했다.`:""}
+장표: ${st.slide.no} "${st.slide.title}" / 내용: ${st.slide.pts.join(" / ")}
+장표 설명 평가 기준: 장표를 낭독하지 않고 고객의 말과 문제에 연결하는가, 짧은가, 예시 화면·수치는 예시라고 밝히는가, 질문으로 끝나는가.`
+ : `상대(${sp.name})가 처음 한 말: "${st.say}"`}
+이 장면의 목적: ${st.ctx}
+이 장면의 좋은 답 요소: ${st.ideal}
+피해야 할 것: ${st.pitfalls}`;
+}
+
+const PERSONA = {
+  CEO:"DS AUTO 대표. 바쁘고 결론부터 듣길 원하며, 매출과 투자 대비 효과를 중시한다. 재구매에도 관심이 있다. 말투는 편하지만 짧다.",
+  COO:"DS AUTO COO. 영업 운영 책임자. 현장 프로세스, 입력 부담, 관리 방식에 관심이 많고 직설적이다. 메일로 이번 미팅을 요청한 당사자다.",
+  INT:"롤플레이를 마친 면접관. 역할을 벗고 지원자의 자기 평가에 짧게 반응한다."
+};
+const FACTS = "컨설턴트가 본사에서 문의를 배분받아 상담·견적을 진행한다. 견적 후 재연락 기준은 사흘이지만 지켜지는지 모른다. 진행 상황은 매주 팀장들이 엑셀로 보고하는데 다 믿기는 어렵다. 담당자가 바뀌면 메신저나 구두로 넘긴다. 문의는 유튜브 등 콘텐츠로 꾸준히 늘고 있다. 문의 수와 계약 전환율은 감으로는 알지만 숫자로 보고 있지 않다. 재구매로 돌아오는 고객은 감으로 30% 정도다. 도입 결정은 대표, COO, 재무가 함께 본다. 지금은 Salesforce와 계약 관계가 없다.";
+
+function outputSpec(st, sp, follow){
+  const key = Object.keys(SP).find(k=>SP[k]===sp);
+  const customer = key!=="INT";
+  return `
+[reply 작성 규칙]
+reply를 쓸 때 너는 평가관이 아니라 ${sp.name}다. ${PERSONA[key]||""}
+${customer ? `알고 있는 회사 사정(지원자가 물으면 이 범위에서 구체적으로 답한다. 없는 사실은 지어내지 말고 "그건 확인해 봐야 해요"라고 한다): ${FACTS}
+- 실제 고객처럼 말한다. 면접관이나 코치처럼 "어떤 질문을 하실지 말해 보세요", "첫 질문을 해 보세요"처럼 지원자를 지도하거나 시험하는 말은 절대 하지 않는다.
+- 지원자가 질문하면 위 사정으로 구체적으로 답한다.
+- 지원자가 진행 방식을 제안하거나 설명을 이어가겠다고 하면 받아들이고 진행을 맡긴다(예: "네, 그렇게 하시죠").
+- 앞에서 이미 한 말을 반복하지 않고, 앞선 대화와 모순되지 않는다.
+- 지원자는 첫 미팅이라 DS AUTO의 내부 숫자(문의 수, 전환율, 매출)를 모르는 것이 당연하다. 지원자에게 DS AUTO의 숫자를 요구하지 않는다. 방법을 묻는 것은 괜찮다.
+- 같은 주제로 연달아 몰아붙이지 않는다. 앞에서 이미 한 번 되물었다면, 지원자 답이 방향만 맞아도 수긍하고 넘어간다.
+- 먼저 resolved를 정한다. 지원자의 답이 이 장면의 목적을 무리 없이 이뤘으면(완벽하지 않아도 실제 미팅에서 고객이 수긍하고 넘어갈 수준이면) resolved는 true다. 답이 질문을 피했거나, 모호하거나, 고객이 꼭 확인하고 싶은 점이 남았을 때만 false다.
+- resolved가 true면 reply는 수긍하고 넘기는 말만 한다(예: "네, 좋습니다. 이어서 보시죠"). 새 질문을 덧붙이지 않는다.
+- resolved가 false면 고객 입장에서 꼭 필요한 질문 한 가지만 한다(비용, 입력 부담, 우리 상황에 맞는지 등).` : `- 면접관으로서 짧게 반응한다. resolved는 항상 true다.`}
+- 1~2문장, 존댓말.
+
+다음 JSON 하나만 답하라:
+{"score": 0~10 정수${follow?"(대화 전체 기준)":""}, "flag": 치명적 실수(근거 없는 수치·사례 날조, 첫 미팅 할인 약속, 경쟁사 비방, 고객 조직 비난, 기능 과장)일 때만 true 아니면 false, "flagReason": "flag가 true면 10자 안팎 이유, 아니면 빈 문자열", "feedback": "평가관 입장에서 한국어 해요체 2문장. ${follow?"대화 전체 기준으로 ":""}잘한 점 1개와 고칠 점 1개", "resolved": true 또는 false, "reply": "위 규칙을 따른 ${sp.name}의 대사"}`;
+}
+
+function renderResult(){
+  const st=STAGES[state.i], sp=listenerOf(st), a=state.answers[state.i];
+  const th=$("thread"); th.textContent="";
+  a.thread.forEach(m=>{
+    if(!m.text) return;
+    const who = m.who==="me" ? SP.ME : sp;
+    const d=document.createElement("div"); d.className="msg "+(m.who==="me"?"mine":"cust");
+    const b=document.createElement("div"); b.className="badge "+who.cls; b.textContent=who.short;
+    const p=document.createElement("p"); p.textContent=m.text;
+    d.append(b,p); th.append(d);
+  });
+  const c=$("rScore"); c.className="chip "+chipClass(a.score); c.textContent=`${a.score} / 10`;
+  $("rScoreNote").textContent = a.follows ? `추가 답변 ${a.follows}번까지 반영한 점수` : (a.retried ? "다시 답한 점수" : "");
+  $("rFlag").hidden=!a.flag; $("rFlag").textContent=a.flag?`레드 플래그 · ${a.flag}`:"";
+  $("rFeedback").textContent=a.feedback;
+  const md=$("rModel"); md.open=false; md.hidden = a.isBest && a.mode==="pick" && !a.follows;
+  $("rModelText").textContent=best(st).t;
+  $("useModel").hidden=!sample;
+  const canFollow = !!sample && a.follows<MAX_FOLLOW;
+  $("followBox").hidden = !canFollow || (a.resolved && !a.more);
+  $("moreBtn").hidden = !canFollow || !a.resolved || a.more;
+  $("resolvedNote").hidden = !a.resolved;
+  $("resolvedNote").textContent = "상대가 수긍했어요. 다음 장면으로 넘어가세요.";
+  $("followLabel").textContent = a.resolved
+    ? `${sp.name}에게 덧붙여 말하기 · 남은 횟수 ${MAX_FOLLOW-a.follows}번 · 점수는 대화 전체로 다시 매겨집니다.`
+    : `${sp.name}의 질문에 답하기 · 남은 횟수 ${MAX_FOLLOW-a.follows}번 · 점수는 대화 전체로 다시 매겨집니다.`;
+  $("followText").value=""; $("followErr").hidden=true; $("followThinking").hidden=true;
+  $("followBtn").disabled=false; $("followText").disabled=false;
+}
+
+async function followUp(){
+  const st=STAGES[state.i], sp=listenerOf(st), a=state.answers[state.i];
+  const t=$("followText").value.trim();
+  if(t.length<5){$("followErr").hidden=false;$("followErr").textContent="한 문장 이상 써 주세요.";return}
+  $("followErr").hidden=true; $("followThinking").hidden=false; $("followBtn").disabled=true; $("followText").disabled=true;
+  const convo=[...a.thread,{who:"me",text:t}].filter(m=>m.text).map(m=>`${m.who==="me"?"지원자":sp.name}: ${m.text}`).join("\n");
+  const prompt = basePrompt(st,sp) + `
+
+지금까지 이 장면의 대화:
+${convo}
+
+지원자의 마지막 답변까지 포함해 이 장면의 대화 전체를 평가하라. 상대의 질문에 구체적으로 답했는지(구체적인 단계·사례·숫자를 짚었는지, 단정하지 않고 질문으로 확인했는지, 짧게 답했는지)도 본다.
+` + outputSpec(st, sp, true);
+  try{
+    const r = await sample.json(prompt,{modelTier:"default",cache:false});
+    a.thread.push({who:"me",text:t},{who:"cust",text:String(r?.reply||"")});
+    a.follows++;
+    a.score=Math.max(0,Math.min(10,Math.round(Number(r?.score))||0));
+    const nf=(r?.flag===true)?String(r.flagReason||"치명적 실수"):"";
+    a.flag = nf || a.flag;
+    if(r?.feedback) a.feedback=String(r.feedback);
+    a.resolved = (r?.resolved===true) || a.score>=8;
+    a.more = false;
+    renderResult();
+  }catch(e){
+    $("followThinking").hidden=true; $("followBtn").disabled=false; $("followText").disabled=false;
+    $("followErr").hidden=false;
+    $("followErr").textContent = e?.code==="not_granted" ? "AI 사용이 허용되지 않아 이어서 답할 수 없습니다."
+      : e?.code==="rate_limited" ? "요청이 많아 잠시 막혔습니다. 조금 뒤에 다시 보내 주세요."
+      : "답을 받지 못했습니다. 다시 보내 주세요.";
+  }
+}
+
+function retry(prefill){
+  renderStage();
+  if(prefill && sample){ setMode("write"); $("freeText").value=prefill; $("freeText").focus(); }
+  window.scrollTo({top:0});
+}
+
+function record(a){
+  const st=STAGES[state.i], sp=listenerOf(st);
+  const prev=state.answers[state.i];
+  state.answers[state.i]={...a, stage:state.i, retried:!!prev, follows:0, thread:[{who:"me",text:a.text},{who:"cust",text:a.reply||""}]};
+  $("thinking").hidden=true;
+  renderResult();
+  $("nextBtn").textContent = state.i===STAGES.length-1 ? "결과 보기" : "다음 장면";
+  $("answerBox").hidden=true; $("resultBox").hidden=false;
+  $("resultBox").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function next(){
+  if(state.i<STAGES.length-1){state.i++;renderStage();window.scrollTo({top:0})}
+  else finish();
+}
+
+function finish(){
+  const ans=state.answers;
+  const total=Math.round(ans.reduce((s,a)=>s+a.score,0)/(STAGES.length*10)*100);
+  const flags=ans.filter(a=>a.flag);
+  const pass= total>=75 && flags.length<2;
+  $("fScore").innerHTML=""; $("fScore").append(String(total)); const sm=document.createElement("small"); sm.textContent=" / 100"; $("fScore").append(sm);
+  let grade, reason;
+  if(pass && total>=90){grade="합격 · 강력 추천";reason="고객과 함께 문제를 확인하고 다음 단계까지 만든 미팅이었어요."}
+  else if(pass){grade="합격";reason="합격선(75점)을 넘었어요. 낮은 항목만 보완하면 됩니다."}
+  else if(flags.length>=2){grade="불합격 · 레드 플래그";reason=`치명적 실수가 ${flags.length}개 나와 점수와 상관없이 불합격이에요.`}
+  else if(total>=60){grade="불합격 · 보류권";reason=`합격선까지 ${75-total}점 남았어요. 아래 낮은 항목부터 다시 보세요.`}
+  else {grade="불합격";reason="발표가 아니라 미팅을 이끄는 쪽으로 답을 다시 골라 보세요."}
+  $("fGrade").textContent=grade; $("fGrade").style.color = pass?"var(--good)":"var(--bad)";
+  $("fReason").textContent=reason;
+  const stamp=$("fStamp"); stamp.className="stamp "+(pass?"pass":"fail"); stamp.textContent="";
+  stamp.append(pass?"합격":"불합격"); const ss=document.createElement("small"); ss.textContent="DS AUTO RP"; stamp.append(ss);
+  void stamp.offsetWidth; stamp.classList.add("show");
+
+  const crit=$("fCrit"); crit.textContent="";
+  for(const [k,v] of Object.entries(CRIT)){
+    const idx=STAGES.map((s,i)=>s.crit.includes(k)?i:-1).filter(i=>i>=0);
+    const val=Math.round(idx.reduce((s,i)=>s+ans[i].score,0)/(idx.length*10)*100);
+    const line=document.createElement("div"); line.className="line";
+    const lb=document.createElement("span"); lb.textContent=v.label;
+    const tr=document.createElement("div"); tr.className="track"; const bar=document.createElement("i"); bar.style.width=val+"%"; if(val<60)bar.className="low"; else if(val<75)bar.className="mid"; tr.append(bar);
+    const n=document.createElement("span"); n.className="mono"; n.textContent=val;
+    line.append(lb,tr,n); crit.append(line);
+  }
+  const fl=$("fFlags"); fl.textContent="";
+  $("fFlagsBox").hidden=flags.length===0;
+  flags.forEach(a=>{const li=document.createElement("li");li.textContent=`${String(a.stage+1).padStart(2,"0")} ${STAGES[a.stage].title}: ${a.flag}`;fl.append(li)});
+  const tb=$("fReview"); tb.textContent="";
+  ans.forEach(a=>{
+    const tr=document.createElement("tr");
+    const t1=document.createElement("td"); t1.textContent=`${String(a.stage+1).padStart(2,"0")} ${STAGES[a.stage].title}${a.mode==="write"?" (직접 답변)":""}${a.follows?` (추가 답변 ${a.follows})`:""}${a.retried?" (다시 답함)":""}`;
+    const t2=document.createElement("td"); const ch=document.createElement("span"); ch.className="chip "+chipClass(a.score); ch.textContent=a.score; t2.append(ch);
+    const t3=document.createElement("td"); t3.textContent=a.feedback;
+    tr.append(t1,t2,t3); tb.append(tr);
+  });
+  setBest(total); renderBest();
+  show("final");
+}
+
+function start(){state=newState();show("play");renderStage()}
+$("startBtn").addEventListener("click",start);
+$("againBtn").addEventListener("click",start);
+$("homeBtn").addEventListener("click",()=>show("intro"));
+$("nextBtn").addEventListener("click",next);
+$("tabPick").addEventListener("click",()=>setMode("pick"));
+$("tabWrite").addEventListener("click",()=>setMode("write"));
+$("submitText").addEventListener("click",submitText);
+$("followBtn").addEventListener("click",followUp);
+$("moreBtn").addEventListener("click",()=>{const a=state.answers[state.i]; a.more=true; renderResult(); $("followText").focus()});
+$("retryBtn").addEventListener("click",()=>retry(""));
+$("useModel").addEventListener("click",()=>retry(best(STAGES[state.i]).t));
+renderBest();
+
+(async()=>{
+  try{ sample = window.claude ? await window.claude.use("sample") : null }catch(e){ sample=null }
+  if(sample){
+    $("tabWrite").hidden=false;
+    $("aiNote").textContent="장면마다 '직접 답하기'를 고르면 Claude가 답변을 채점하고 대표·COO 역할로 반응합니다. 처음 쓸 때 사용 허락을 묻습니다.";
+  }else{
+    $("aiNote").textContent="이 화면에서는 답변 고르기로 진행합니다.";
+  }
+})();
+</script>
+</body>
+</html>
