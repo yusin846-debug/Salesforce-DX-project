@@ -1,5 +1,5 @@
 // Bundled with DATA and WIDGET by scripts/build.mjs. No provider API key required.
-const RESOURCE='ui://ds-auto/roleplay-v1.html';
+const RESOURCE='ui://ds-auto/roleplay-v2.html';
 const MIME='text/html;profile=mcp-app';
 const SCENES=new Map(DATA.scenes.map(s=>[s.id,s]));
 const uuid=()=>crypto.randomUUID();
