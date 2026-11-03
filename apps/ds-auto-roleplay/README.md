@@ -75,3 +75,10 @@ node --test apps/ds-auto-roleplay/tests/roleplay.test.cjs
 5. 해당 브랜치의 Preview 배포를 생성합니다. 프로덕션 브랜치 변경이나 기본 브랜치 병합은 별도 작업입니다.
 
 저장소의 파일과 기존 Claude Artifact 링크는 별개입니다. GitHub 파일을 수정해도 기존 Artifact 사본은 자동 갱신되지 않습니다.
+
+
+## ChatGPT 안에서 GPT 평가 받기
+
+`chatgpt-app/`에 개인용 ChatGPT MCP 앱을 추가했다. 최신12장 발표 뒤 RP16문항→일반 면접13문항을 진행하며, 자유 답변은 현재 대화의 ChatGPT가 평가해 서버에 저장한다. 별도 모델 API 키는 사용하지 않는다. 기존 `index.html` 독립 실행 게임도 유지한다.
+
+설치·연결·실행과 검증 명령은 [ChatGPT 앱 README](chatgpt-app/README.md)를 참고한다.
